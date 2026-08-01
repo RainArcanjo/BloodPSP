@@ -5,6 +5,7 @@
 #include <pspctrl.h>
 #include <pspdisplay.h>
 #include <pspge.h>
+#include <psppower.h>
 #include <psprtc.h>
 
 #include <stdarg.h>
@@ -65,6 +66,8 @@ static uint32_t *vram;
 static int drawbuffer;
 static FILE *psp_log;
 static int psp_log_enabled = 1;
+static uint16_t psp_scale_x[480];
+static uint16_t psp_scale_y[272];
 static uint64_t timerlastsample;
 static int timerfreq, timerticspersec;
 static void (*usertimercallback)(void);
@@ -114,7 +117,11 @@ int initsystem(void)
     // The game data and configuration belong beside EBOOT.PBP.  This avoids
     // the desktop-oriented HOME/.config relocation in the shared game code.
     g_useCwd = 1;
+#ifdef PSP_PERFORMANCE_BUILD
+    psp_log_enabled = 0;
+#else
     psp_read_options();
+#endif
     if (psp_log_enabled && !psp_log)
     {
         psp_log = fopen("jfblood.log", "w");
@@ -122,7 +129,12 @@ int initsystem(void)
     }
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
+    scePowerSetClockFrequency(333, 333, 166);
     sceDisplaySetMode(0, 480, 272);
+    for (int i = 0; i < 480; ++i)
+        psp_scale_x[i] = (uint16_t)((i * 320) / 480);
+    for (int i = 0; i < PSP_FB_HEIGHT; ++i)
+        psp_scale_y[i] = (uint16_t)((i * 200) / PSP_FB_HEIGHT);
     vram = (uint32_t *)sceGeEdramGetAddr();
     drawbuffer = 0;
     sceDisplaySetFrameBuf(vram, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565,
@@ -152,11 +164,18 @@ void uninitsystem(void)
 
 void initputs(const char *str)
 {
+#ifdef PSP_PERFORMANCE_BUILD
+    (void)str;
+#else
     fputs(str, stderr);
     if (psp_log) { fputs(str, psp_log); fflush(psp_log); }
+#endif
 }
 void debugprintf(const char *fmt, ...)
 {
+#ifdef PSP_PERFORMANCE_BUILD
+    (void)fmt;
+#else
     va_list va;
     va_start(va, fmt);
     vfprintf(stderr, fmt, va);
@@ -169,6 +188,7 @@ void debugprintf(const char *fmt, ...)
         va_end(va);
         fflush(psp_log);
     }
+#endif
 }
 
 int initinput(void)
@@ -281,11 +301,11 @@ void showframe(void)
     // allocation.
     for (y = 0; y < PSP_FB_HEIGHT; ++y)
     {
-        int sy = (y * yres) / PSP_FB_HEIGHT;
+        int sy = psp_scale_y[y];
         uint8_t *src = framebuffer + sy * xres;
         uint16_t *row = dst + y * PSP_FB_STRIDE;
         for (x = 0; x < 480; ++x)
-            row[x] = palette565[src[(x * xres) / 480]];
+            row[x] = palette565[src[psp_scale_x[x]]];
     }
     sceDisplayWaitVblankStart();
     sceDisplaySetFrameBuf(dst, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);

@@ -1840,11 +1840,15 @@ void ProcessFrame(void)
     G_RefreshLights();
 #endif
     viewCorrectPrediction();
+#if !defined(__PSP__)
     sndProcess();
     ambProcess();
+#endif
     viewUpdateDelirium();
     viewUpdateShake();//t4 = getusecticks()-tstart;tstart = getusecticks();
+#if !defined(__PSP__)
     sfxUpdate3DSounds();//t5 = getusecticks()-tstart;tstart = getusecticks();
+#endif
     if (gMe->hand == 1)
     {
 #define CHOKERATE 8

@@ -5,3 +5,5 @@
 *.sfo
 platform/*.o
 src/version-auto.c
+nblood.cfg
+nblood.log

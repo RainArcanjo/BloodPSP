@@ -35,3 +35,7 @@ void netPlayerQuit(int) {}
 void netUpdate(void) {}
 void netDeinitialize(void) {}
 void netBroadcastNewGame(void) {}
+
+// The renderer calls this while processing large draw loops.  In the PSP
+// MVP network play is disabled, so there is no network tick to service.
+extern "C" void faketimerhandler(void) {}

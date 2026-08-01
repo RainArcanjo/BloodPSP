@@ -1249,11 +1249,11 @@ void GAME_onshowosd(int shown)
 //        KB_KeyDown[sc_Pause] = 1;
 }
 
-void GAME_clearbackground(int numcols, int numrows)
+void GAME_clearbackground(int32_t numcols, int32_t numrows)
 {
 #ifndef EDUKE32
 	videoSetViewableArea(0, 0, xdim - 1, ydim - 1);
-	int nHeight = min(ydim, numrows*8+8);
+	int nHeight = min(ydim, (int)(numrows*8+8));
 	for (int i = 0; i < nHeight; i++) {
 		renderDrawLine(0, i << 12, xdim << 12, i << 12, blackcol);
 	}

@@ -111,7 +111,12 @@ const char *pzBaseFileName = "tiles000.art";
 const char *pzBaseFileName = "TILES%03i.ART"; //"TILES%03i.ART";
 #endif
 
-#ifndef EDUKE32
+#if defined(__PSP__)
+// Keep room for the resource heap, game state and the PSP framebuffer.  The
+// desktop JFBuild default consumes nearly all available user memory on PSP,
+// causing later resource loads to fail with std::bad_alloc.
+int32_t MAXCACHE1DSIZE = (8*1024*1024);
+#elif !defined(EDUKE32)
 int32_t MAXCACHE1DSIZE = (16*1024*1024);
 #else
 int32_t MAXCACHE1DSIZE = (96*1024*1024);

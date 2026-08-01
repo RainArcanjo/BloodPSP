@@ -688,6 +688,14 @@ void sndInit(void)
     nSongSize = 0;
     bWaveMusic = false;
     nWaveMusicHandle = -1;
+#ifdef __PSP__
+    // The MVP deliberately has no audio backend.  Do not initialize
+    // MultiVoc's mixer: it would reserve memory despite the null driver.
+    SoundToggle = 0;
+    MusicToggle = 0;
+    sndActive = false;
+    return;
+#endif
     InitSoundDevice();
     InitMusicDevice();
     sndActive = true;

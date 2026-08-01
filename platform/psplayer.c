@@ -16,6 +16,8 @@
 #include "baselayer.h"
 #include "compat.h"
 
+extern int g_useCwd;
+
 PSP_MODULE_INFO("JFBlood PSP", PSP_MODULE_USER, 1, 0);
 PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER | PSP_THREAD_ATTR_VFPU);
 
@@ -25,6 +27,8 @@ char quitevent = 0, appactive = 1;
 int xres = -1, yres = -1, bpp = 0, fullscreen = 1, bytesperline = 0, imageSize = 0;
 char offscreenrendering = 0;
 intptr_t frameplace = 0;
+char modechange = 1;
+char videomodereset = 0;
 
 int inputdevices = 0;
 char keystatus[256];
@@ -35,10 +39,14 @@ int mousex = 0, mousey = 0, mouseb = 0;
 int joyaxis[4], joyb = 0;
 char joynumaxes = 0, joynumbuttons = 0;
 
+// Keep the indexed game surface out of the fragmented runtime heap.  The
+// JFBuild cache is allocated before video setup and is intentionally large.
+static uint8_t framebuffer_storage[320 * 200];
 static uint8_t *framebuffer;
 static uint16_t palette565[256];
 static uint32_t *vram;
 static int drawbuffer;
+static FILE *psp_log;
 static uint64_t timerlastsample;
 static int timerfreq, timerticspersec;
 static void (*usertimercallback)(void);
@@ -59,13 +67,20 @@ static uint64_t psp_ticks(void)
 
 static void shutdownvideo(void)
 {
-    free(framebuffer);
     framebuffer = NULL;
     frameplace = 0;
 }
 
 int initsystem(void)
 {
+    // The game data and configuration belong beside EBOOT.PBP.  This avoids
+    // the desktop-oriented HOME/.config relocation in the shared game code.
+    g_useCwd = 1;
+    if (!psp_log)
+    {
+        psp_log = fopen("jfblood.log", "w");
+        if (psp_log) { fputs("JFBlood PSP startup\n", psp_log); fflush(psp_log); }
+    }
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     sceDisplaySetMode(0, 480, 272);
@@ -93,15 +108,28 @@ void uninitsystem(void)
     uninitinput();
     uninittimer();
     shutdownvideo();
+    if (psp_log) { fclose(psp_log); psp_log = NULL; }
 }
 
-void initputs(const char *str) { fputs(str, stderr); }
+void initputs(const char *str)
+{
+    fputs(str, stderr);
+    if (psp_log) { fputs(str, psp_log); fflush(psp_log); }
+}
 void debugprintf(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
     vfprintf(stderr, fmt, va);
     va_end(va);
+
+    if (psp_log)
+    {
+        va_start(va, fmt);
+        vfprintf(psp_log, fmt, va);
+        va_end(va);
+        fflush(psp_log);
+    }
 }
 
 int initinput(void)
@@ -179,7 +207,10 @@ void getvalidmodes(void)
 int checkvideomode(int *x, int *y, int c, int fs, int UNUSED(forced))
 {
     getvalidmodes();
-    if (c != 8 || !fs) return -1;
+    // JFBuild's fallback probes a windowed mode.  PSP only has the display
+    // framebuffer, so accept either request and expose the same 320x200
+    // indexed surface in both cases.
+    if (c != 8) return -1;
     *x = 320; *y = 200;
     return 0;
 }
@@ -187,14 +218,16 @@ int setvideomode(int x, int y, int c, int fs)
 {
     if (checkvideomode(&x, &y, c, fs, 1) < 0) return -1;
     shutdownvideo();
-    framebuffer = (uint8_t *)calloc((size_t)x * y, 1);
-    if (!framebuffer) return -1;
-    xres = x; yres = y; bpp = c; fullscreen = fs;
+    framebuffer = framebuffer_storage;
+    memset(framebuffer, 0, sizeof(framebuffer_storage));
+    xres = x; yres = y; bpp = c; fullscreen = 1;
     bytesperline = x; imageSize = x * y; numpages = 1;
+    modechange = 1;
+    videomodereset = 0;
     return 0;
 }
-void resetvideomode(void) { modeschecked = 0; }
-void begindrawing(void) { if (!offscreenrendering) frameplace = (intptr_t)framebuffer; }
+void resetvideomode(void) { videomodereset = 1; modeschecked = 0; }
+void begindrawing(void) { if (!offscreenrendering) { frameplace = (intptr_t)framebuffer; modechange = 0; } }
 void enddrawing(void) {}
 void showframe(void)
 {

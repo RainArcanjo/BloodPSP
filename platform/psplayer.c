@@ -19,6 +19,7 @@
 // jfmact/keyboard.h needs internal typedefs not exposed to this C platform
 // layer.  These are the stable PC scan codes used by the Blood defaults.
 enum {
+    PSP_SC_ESCAPE = 0x01,
     PSP_SC_W = 0x11,
     PSP_SC_S = 0x1f,
     PSP_SC_E = 0x12,
@@ -63,6 +64,7 @@ static uint16_t palette565[256];
 static uint32_t *vram;
 static int drawbuffer;
 static FILE *psp_log;
+static int psp_log_enabled = 1;
 static uint64_t timerlastsample;
 static int timerfreq, timerticspersec;
 static void (*usertimercallback)(void);
@@ -87,12 +89,33 @@ static void shutdownvideo(void)
     frameplace = 0;
 }
 
+static void psp_read_options(void)
+{
+    FILE *cfg = fopen("nblood.cfg", "rt");
+    char line[128];
+    int enabled;
+
+    if (!cfg)
+        return;
+    while (fgets(line, sizeof(line), cfg))
+    {
+        if (sscanf(line, " PSPLog = %d", &enabled) == 1 ||
+            sscanf(line, "PSPLog=%d", &enabled) == 1)
+        {
+            psp_log_enabled = enabled != 0;
+            break;
+        }
+    }
+    fclose(cfg);
+}
+
 int initsystem(void)
 {
     // The game data and configuration belong beside EBOOT.PBP.  This avoids
     // the desktop-oriented HOME/.config relocation in the shared game code.
     g_useCwd = 1;
-    if (!psp_log)
+    psp_read_options();
+    if (psp_log_enabled && !psp_log)
     {
         psp_log = fopen("jfblood.log", "w");
         if (psp_log) { fputs("JFBlood PSP startup\n", psp_log); fflush(psp_log); }
@@ -322,6 +345,7 @@ static void psp_apply_keyboard_controls(uint32_t buttons)
     psp_set_key(PSP_SC_LEFTALT, !!(buttons & PSP_CTRL_CIRCLE));
     psp_set_key(PSP_SC_LEFTSHIFT, !!(buttons & PSP_CTRL_SQUARE));
     psp_set_key(PSP_SC_E, !!(buttons & PSP_CTRL_TRIANGLE));
+    psp_set_key(PSP_SC_ESCAPE, !!(buttons & PSP_CTRL_START));
 }
 
 int handleevents(void)

@@ -65,7 +65,16 @@ void netInitialize(bool) { netResetToSinglePlayer(); }
 void netBroadcastPlayerInfo(int) {}
 void netCheckSync(void) {}
 void netMasterUpdate(void) {}
-void netGetInput(void) {}
+void netGetInput(void)
+{
+    // Even without networking, the Blood main loop advances game physics
+    // only after an input frame enters this FIFO.  The previous empty stub
+    // left gNetFifoHead at zero forever: rendering continued, but
+    // ProcessFrame() (players, AI, projectiles and animations) never ran.
+    GINPUT &input = gFifoInput[gNetFifoHead[myconnectindex] & 255][myconnectindex];
+    input = gNetInput;
+    gNetFifoHead[myconnectindex]++;
+}
 void netPlayerQuit(int) {}
 void netUpdate(void) {}
 void netDeinitialize(void) {}

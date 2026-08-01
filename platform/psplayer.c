@@ -16,6 +16,22 @@
 #include "baselayer.h"
 #include "compat.h"
 
+// jfmact/keyboard.h needs internal typedefs not exposed to this C platform
+// layer.  These are the stable PC scan codes used by the Blood defaults.
+enum {
+    PSP_SC_W = 0x11,
+    PSP_SC_S = 0x1f,
+    PSP_SC_E = 0x12,
+    PSP_SC_RETURN = 0x1c,
+    PSP_SC_LEFTCTRL = 0x1d,
+    PSP_SC_LEFTALT = 0x38,
+    PSP_SC_LEFTSHIFT = 0x2a,
+    PSP_SC_UP = 0xc8,
+    PSP_SC_DOWN = 0xd0,
+    PSP_SC_LEFT = 0xcb,
+    PSP_SC_RIGHT = 0xcd,
+};
+
 extern int g_useCwd;
 
 PSP_MODULE_INFO("JFBlood PSP", PSP_MODULE_USER, 1, 0);
@@ -236,9 +252,18 @@ void showframe(void)
     if (offscreenrendering || !framebuffer || !vram) return;
     drawbuffer ^= 1;
     dst = (uint16_t *)((uint8_t *)vram + drawbuffer * PSP_FB_SIZE);
-    for (y = 0; y < yres; ++y)
-        for (x = 0; x < xres; ++x)
-            dst[(y + 36) * PSP_FB_STRIDE + x + 80] = palette565[framebuffer[y * xres + x]];
+    // The renderer remains 320x200 (fast and faithful to classic BUILD),
+    // while the presentation pass fills the 480x272 LCD.  Nearest-neighbour
+    // scaling keeps the original indexed pixels crisp and has no extra cache
+    // allocation.
+    for (y = 0; y < PSP_FB_HEIGHT; ++y)
+    {
+        int sy = (y * yres) / PSP_FB_HEIGHT;
+        uint8_t *src = framebuffer + sy * xres;
+        uint16_t *row = dst + y * PSP_FB_STRIDE;
+        for (x = 0; x < 480; ++x)
+            row[x] = palette565[src[(x * xres) / 480]];
+    }
     sceDisplayWaitVblankStart();
     sceDisplaySetFrameBuf(dst, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 }
@@ -263,6 +288,42 @@ static int psp_buttons(uint32_t buttons)
     for (i = 0; i < 16; ++i) if (buttons & masks[i]) result |= 1 << i;
     return result;
 }
+
+// The JFMact joystick binding table is useful for configuration, but its
+// historical polling path is not reliable on the PSP backend yet.  Mirror
+// the handheld controls into the established keyboard path as well.  This
+// makes the in-game menus and the original Blood movement bindings work
+// without changing the user's cfg file.
+static void psp_set_key(int scan, int down)
+{
+    if (keystatus[scan] == down)
+        return;
+    keystatus[scan] = down;
+    if (keypresscallback)
+        keypresscallback(scan, down);
+}
+
+static void psp_apply_keyboard_controls(uint32_t buttons)
+{
+    int up = !!(buttons & PSP_CTRL_UP);
+    int down = !!(buttons & PSP_CTRL_DOWN);
+    int left = !!(buttons & PSP_CTRL_LEFT);
+    int right = !!(buttons & PSP_CTRL_RIGHT);
+
+    psp_set_key(PSP_SC_W, up);
+    psp_set_key(PSP_SC_UP, up);
+    psp_set_key(PSP_SC_S, down);
+    psp_set_key(PSP_SC_DOWN, down);
+    psp_set_key(PSP_SC_LEFT, left);
+    psp_set_key(PSP_SC_RIGHT, right);
+
+    psp_set_key(PSP_SC_LEFTCTRL, !!(buttons & PSP_CTRL_CROSS));
+    psp_set_key(PSP_SC_RETURN, !!(buttons & PSP_CTRL_CROSS));
+    psp_set_key(PSP_SC_LEFTALT, !!(buttons & PSP_CTRL_CIRCLE));
+    psp_set_key(PSP_SC_LEFTSHIFT, !!(buttons & PSP_CTRL_SQUARE));
+    psp_set_key(PSP_SC_E, !!(buttons & PSP_CTRL_TRIANGLE));
+}
+
 int handleevents(void)
 {
     SceCtrlData pad;
@@ -275,10 +336,11 @@ int handleevents(void)
                     (unsigned int)pad.Buttons, (unsigned int)buttons, (unsigned int)changed);
     for (i = 0; i < 16; ++i)
         if ((changed & (1 << i)) && joypresscallback) joypresscallback(i, !!(buttons & (1 << i)));
+    psp_apply_keyboard_controls(pad.Buttons);
     joyb = buttons;
     joyaxis[0] = ((int)pad.Lx - 128) * 256;
     joyaxis[1] = ((int)pad.Ly - 128) * 256;
-    if ((pad.Buttons & PSP_CTRL_HOME) && (pad.Buttons & PSP_CTRL_START)) quitevent = 1;
+    // Do not consume HOME: firmware/PPSSPP owns it for the XMB system menu.
     sampletimer();
     return quitevent;
 }

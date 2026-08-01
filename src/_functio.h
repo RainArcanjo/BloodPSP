@@ -253,10 +253,10 @@ static const char * joystickdefaults[MAXJOYBUTTONSANDHATS] =
    "Weapon_Special_Fire", // R
    "", // Start
    "Map_Toggle", // Select
-   "Inventory", // Up
-   "Inventory_Use", // Down
-   "Previous_Weapon", // Left
-   "Next_Weapon", // Right
+   "Move_Forward", // D-pad Up
+   "Move_Backward", // D-pad Down
+   "Turn_Left", // D-pad Left
+   "Turn_Right", // D-pad Right
    "", // Home
    "", // Hold
    "", // Vol+

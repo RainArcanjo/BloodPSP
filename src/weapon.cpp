@@ -252,6 +252,23 @@ void WeaponDraw(PLAYER *pPlayer, int a2, int x, int y, int a5)
         v4 = pQAV->at10 - pPlayer->weaponTimer;
     pQAV->x = x;
     pQAV->y = y;
+#ifdef __PSP__
+    static int pspWeaponLogged;
+    if (!pspWeaponLogged)
+    {
+        int nFrame = v4 / pQAV->ticksPerFrame;
+        int nTile = -1;
+        if (nFrame >= 0 && nFrame < pQAV->nFrames)
+            for (int i = 0; i < 8; ++i)
+                if (pQAV->frames[nFrame].tiles[i].picnum > 0)
+                {
+                    nTile = pQAV->frames[nFrame].tiles[i].picnum;
+                    break;
+                }
+        initprintf("PSP render: weapon qav=%d frame=%d tile=%d\n", pPlayer->weaponQav, nFrame, nTile);
+        pspWeaponLogged = 1;
+    }
+#endif
     int flags = 2 | kQavOrientationQ16/* | RS_LERP*/;
     int nInv = powerupCheck(pPlayer, kPwUpShadowCloak);
     if (nInv >= 120 * 8 || (nInv != 0 && ((int)totalclock & 32)))

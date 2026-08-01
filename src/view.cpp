@@ -3982,7 +3982,16 @@ RORHACK:
         yax_preparedrawrooms();
         renderDrawRoomsQ16(cX, cY, cZ, cA, q16horiz + fix16_from_int(defaultHoriz) + deliriumPitchI, nSectnum);
         yax_drawrooms(viewProcessSprites, nSectnum, 0, gInterpolate);
+#ifdef __PSP__
+        static int pspViewFrames;
+        if (++pspViewFrames == 1 || (pspViewFrames % 180) == 0)
+            initprintf("PSP render: room sprites=%d sector=%d view=%d,%d,%d\n", spritesortcnt, nSectnum, cX, cY, cZ);
+#endif
         viewProcessSprites(cX, cY, cZ, fix16_to_int(cA), gInterpolate);
+#ifdef __PSP__
+        if (pspViewFrames == 1 || (pspViewFrames % 180) == 0)
+            initprintf("PSP render: processed sprites=%d\n", spritesortcnt);
+#endif
         bool do_ror_hack = false;
         for (int i = 0; i < 16; i++)
             if (ror_status[i] != TestBitString(gotpic, 4080+i))

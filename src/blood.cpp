@@ -1478,8 +1478,15 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     scrSetDac();
 #if defined(__PSP__)
     initprintf("PSP level: DAC set; preloading cache\n");
-#endif
+#else
     PreloadCache();
+#endif
+#if defined(__PSP__)
+    // The MVP has an 8 MiB cache and no voxel renderer.  JFBuild's full
+    // preload may call exit(0) when it cannot retain every map asset; defer
+    // tile loading to the normal on-demand path instead.
+    initprintf("PSP level: full precache skipped (on-demand tiles, no voxels)\n");
+#endif
     initprintf("PSP level: cache preloaded\n");
 #ifdef __AMIGA__
     if (gDemo.at1)

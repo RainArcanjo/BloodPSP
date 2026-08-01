@@ -774,7 +774,7 @@ void CONFIG_SetJoystickDefaults(int style)
 {
     const char **joydefaultset, **joyclickeddefaultset;
     const char **joydigitaldefaultset, **joyanalogdefaultset;
-#ifndef __vita__
+#if !defined(__vita__) && !defined(__PSP__)
     if (style) {
         joydefaultset = joystickdefaults_modern;
         joyclickeddefaultset = joystickclickeddefaults_modern;

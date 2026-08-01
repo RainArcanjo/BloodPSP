@@ -16,6 +16,9 @@
 #include "baselayer.h"
 #include "compat.h"
 
+PSP_MODULE_INFO("JFBlood PSP", PSP_MODULE_USER, 1, 0);
+PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER | PSP_THREAD_ATTR_VFPU);
+
 int _buildargc = 0;
 const char **_buildargv = NULL;
 char quitevent = 0, appactive = 1;
@@ -71,6 +74,18 @@ int initsystem(void)
     sceDisplaySetFrameBuf(vram, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565,
                           PSP_DISPLAY_SETBUF_IMMEDIATE);
     return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    int result;
+    _buildargc = argc;
+    _buildargv = (const char **)argv;
+    if (initsystem() != 0) return 1;
+    baselayer_init();
+    result = app_main(_buildargc, (char const * const *)_buildargv);
+    uninitsystem();
+    return result;
 }
 
 void uninitsystem(void)
@@ -236,3 +251,12 @@ int wm_filechooser(const char *UNUSED(initialdir), const char *UNUSED(initialfil
 int wm_idle(void *UNUSED(data)) { return 0; }
 void wm_setapptitle(const char *UNUSED(name)) {}
 void wm_setwindowtitle(const char *UNUSED(name)) {}
+
+// The PSP MVP has no native startup dialog. The game begins immediately and
+// its regular in-game menus remain available.
+int startwin_open(void) { return 0; }
+int startwin_close(void) { return 0; }
+int startwin_puts(const char *UNUSED(msg)) { return 0; }
+int startwin_settitle(const char *UNUSED(title)) { return 0; }
+int startwin_idle(void *UNUSED(data)) { return 0; }
+int startwin_run(struct startwin_settings *UNUSED(settings)) { return STARTWIN_RUN; }

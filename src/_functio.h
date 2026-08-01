@@ -242,7 +242,7 @@ static const char * mouseanalogdefaults[MAXMOUSEAXES] =
 #endif
    };
 
-#if defined(__vita__)
+#if defined(__vita__) || defined(__PSP__)
 static const char * joystickdefaults[MAXJOYBUTTONSANDHATS] =
    {
    "Jump", // Cross

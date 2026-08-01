@@ -605,11 +605,13 @@ static inline void tileSetSize(int32_t picnum, int16_t dasizx, int16_t dasizy)
 }
 
 #if defined(__AMIGA__) && !defined(__vita__)
+#if !defined(__PSP__)
 static inline size_t strnlen(const char * s, size_t len) {
     size_t i = 0;
     for ( ; i < len && s[i]; ++i);
     return i;
 }
+#endif
 #endif
 
 extern uint32_t wrandomseed;

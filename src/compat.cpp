@@ -62,9 +62,9 @@ int32_t fnlist_getnames(fnlist_t *fnl, const char *dirname, const char *pattern,
     return 0;
 } 
 
-int win_priorityclass;
+int32_t win_priorityclass;
 int paletteloaded;
-int Numsprites = 0;
+int32_t Numsprites = 0;
 char *g_defNamePtr = NULL;
 int CONTROL_BindsEnabled; // TODO remove
 //const char* s_buildRev = ""; // TODO remove

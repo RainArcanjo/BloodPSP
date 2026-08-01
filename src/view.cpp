@@ -1950,13 +1950,13 @@ void UpdateStatusBar(ClockTicks arg)
 
     if (gGameOptions.nGameType == 3)
     {
-#ifndef __AMIGA__
+#if !defined(__AMIGA__) && !defined(__PSP__)
         if (VanillaMode())
 #endif
         {
             viewDrawCtfHudVanilla(arg);
         }
-#ifndef __AMIGA__
+#if !defined(__AMIGA__) && !defined(__PSP__)
         else
         {
             viewDrawCtfHud(arg);
@@ -2724,7 +2724,7 @@ void viewProcessSprites(int32_t cX, int32_t cY, int32_t cZ, int32_t cA, int32_t 
                 break;
             case 1:
             {
-#ifndef __AMIGA__
+#if !defined(__AMIGA__) && !defined(__PSP__)
 #ifdef __AMIGA__
                 if (usevoxels /*&& gDetail >= 4*/ && tiletovox[pTSprite->picnum] != -1)
 #else
@@ -2752,7 +2752,7 @@ void viewProcessSprites(int32_t cX, int32_t cY, int32_t cZ, int32_t cA, int32_t 
             }
             case 2:
             {
-#ifndef __AMIGA__
+#if !defined(__AMIGA__) && !defined(__PSP__)
 #ifdef __AMIGA__
                 if (usevoxels /*&& gDetail >= 4*/ && tiletovox[pTSprite->picnum] != -1)
 #else
@@ -2793,6 +2793,7 @@ void viewProcessSprites(int32_t cX, int32_t cY, int32_t cZ, int32_t cA, int32_t 
                     break;
 #endif
                 // Can be overridden by def script
+#ifndef __PSP__
 #ifdef __AMIGA__
                 if (usevoxels && gDetail >= 4 && voxelIndex[pTSprite->picnum] != -1)
 #else
@@ -2822,6 +2823,7 @@ void viewProcessSprites(int32_t cX, int32_t cY, int32_t cZ, int32_t cA, int32_t 
                         }
                     }
                 }
+#endif // !__PSP__
                 break;
             }
         }

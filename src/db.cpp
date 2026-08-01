@@ -765,7 +765,9 @@ int dbLoadMap(const char *pPath, int *pX, int *pY, int *pZ, short *pAngle, short
     memset(show2dwall,0,sizeof(show2dwall));
     memset(show2dsprite,0,sizeof(show2dsprite));
 #ifndef __AMIGA__
-    memset(spriteext,0,kMaxSprites*sizeof(spriteext_t));
+    // JFBuild names the element type spriteexttype; clearing the array itself
+    // is both portable and covers its extra HUD entries.
+    memset(spriteext, 0, sizeof(spriteext));
 #endif
 
     memset(xvel,0,sizeof(xvel));

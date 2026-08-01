@@ -5,6 +5,7 @@ OBJS := platform/psp_bootstrap.o
 # host-compiler compatibility mode. GCC 15 defaults to C23 on this host while
 # the historical JFBuild code expects GNU C17 semantics.
 CFLAGS += -std=gnu17 -I jfbuild-vita/include -I jfbuild-vita/src
+CXXFLAGS += -std=gnu++14 -fpermissive
 
 PSP_FW_VERSION := 600
 BUILD_PRX := 1
@@ -15,3 +16,65 @@ include $(PSPSDK)/lib/build.mak
 
 .PHONY: platform-check
 platform-check: platform/psplayer.o
+
+# The full game build is kept separate from the already validated bootstrap.
+# It reuses the backport's object list but selects the PSP platform, JFBuild
+# copy and the AudioLib no-sound backend (no SDL/PSP audio driver is built).
+override PLATFORM := PSP
+override RENDERTYPE := PSP
+EROOT := jfbuild-vita
+MACTROOT := jfmact
+AUDIOLIBROOT := jfaudiolib
+USE_POLYMOST := 0
+USE_OPENGL := 0
+USE_ASM := 0
+RELEASE := 1
+CC := psp-gcc
+CXX := psp-g++
+AR := psp-ar
+RANLIB := psp-ranlib
+
+include Makefile
+
+platform/%.o: platform/%.cpp
+	$(CXX) $(CXXFLAGS) $(OURCXXFLAGS) $(OURCFLAGS) -c $< -o $@
+
+# Network and Smacker are deliberately outside the PSP MVP.  The game-network
+# object is replaced by a single-player stub at link time in the next stage.
+GAMEOBJS := $(filter-out $(ENETOBJ) $(SMACKEROBJ) $(SRC)/network.$o,$(GAMEOBJS)) platform/network_stub.o
+ENETOBJ :=
+SMACKEROBJ :=
+
+# The upstream rule invokes a nested make without forwarding the PSP tool
+# names, which makes it accidentally discover host SDL.  Audio remains linked
+# only for API compatibility; its compiled driver is driver_nosound.c.
+$(AUDIOLIBROOT)/$(JFAUDIOLIB):
+	$(MAKE) -C $(AUDIOLIBROOT) $(JFAUDIOLIB) RELEASE=$(RELEASE) CC=$(CC) AR=$(AR) CFLAGS="-std=gnu17" JFAUDIOLIB_HAVE_SDL=0 JFAUDIOLIB_HAVE_ALSA=0 JFAUDIOLIB_HAVE_VORBIS=0
+	$(RANLIB) $@
+
+.PHONY: blood-objects
+blood-objects: $(GAMEOBJS) $(JMACTOBJ) $(AUDIOLIBROOT)/$(JFAUDIOLIB)
+
+JFBLOOD_TARGET := jfbloodpsp
+JFBLOOD_ELF := $(JFBLOOD_TARGET).elf
+JFBLOOD_PRX := $(JFBLOOD_TARGET).prx
+JFBLOOD_OBJS := $(GAMEOBJS) platform/psplayer.o
+JFBLOOD_ENGINE := $(EROOT)/src/libengine.a
+
+$(JFBLOOD_ENGINE):
+	$(MAKE) -C $(EROOT) enginelib PLATFORM=PSP RENDERTYPE=PSP CC=$(CC) CXX=$(CXX) AR=$(AR) RANLIB=$(RANLIB) USE_POLYMOST=0 USE_OPENGL=0 USE_ASM=0 RELEASE=1
+
+enginelib:
+	$(MAKE) -C $(EROOT) enginelib PLATFORM=PSP RENDERTYPE=PSP CC=$(CC) CXX=$(CXX) AR=$(AR) RANLIB=$(RANLIB) USE_POLYMOST=0 USE_OPENGL=0 USE_ASM=0 RELEASE=1
+
+$(JFBLOOD_ELF): blood-objects $(JFBLOOD_ENGINE) $(JFBLOOD_OBJS)
+	$(CXX) $(CXXFLAGS) -specs=$(PSPSDK)/lib/prxspecs -Wl,-q,-T$(PSPSDK)/lib/linkfile.prx -o $@ $(JFBLOOD_OBJS) $(JFBLOOD_ENGINE) $(AUDIOLIBROOT)/$(JFAUDIOLIB) -lm -lpspuser -lpspkernel
+
+$(JFBLOOD_PRX): $(JFBLOOD_ELF)
+	psp-fixup-imports $<
+	psp-prxgen $< $@
+
+.PHONY: blood-eboot
+blood-eboot: $(JFBLOOD_PRX)
+	mksfoex "JFBlood PSP (MVP)" PARAM.SFO
+	pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL $(JFBLOOD_PRX) NULL

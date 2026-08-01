@@ -1407,6 +1407,7 @@ CGameMenuItemSlider::CGameMenuItemSlider()
     nStep = 0;
     pCallback = NULL;
     pValue = NULL;
+    pValue32 = NULL;
     nSliderTile = 2204;
     nCursorTile = 2028;
     nShowValue = kMenuSliderNone;
@@ -1423,6 +1424,8 @@ CGameMenuItemSlider::CGameMenuItemSlider(const char *_pzText, int _nFont, int _n
     nRangeHigh = _nRangeHigh;
     nStep = _nStep;
     nValue = ClipRange(_nValue, nRangeLow, nRangeHigh);
+    pValue = NULL;
+    pValue32 = NULL;
     pCallback = _pCallback;
     nSliderTile = 2204;
     nCursorTile = 2028;
@@ -1445,6 +1448,7 @@ CGameMenuItemSlider::CGameMenuItemSlider(const char *_pzText, int _nFont, int _n
     nStep = _nStep;
     dassert(pnValue != NULL);
     pValue = pnValue;
+    pValue32 = NULL;
     nValue = ClipRange(*pnValue, nRangeLow, nRangeHigh);
     pCallback = _pCallback;
     nSliderTile = 2204;
@@ -1456,11 +1460,19 @@ CGameMenuItemSlider::CGameMenuItemSlider(const char *_pzText, int _nFont, int _n
     nShowValue = _nShowValue;
 }
 
+CGameMenuItemSlider::CGameMenuItemSlider(const char *_pzText, int _nFont, int _nX, int _nY, int _nWidth, int32_t *pnValue, int _nRangeLow, int _nRangeHigh, int _nStep, void(*_pCallback)(CGameMenuItemSlider *), int _nSliderTile, int _nCursorTile, int _nShowValue)
+    : CGameMenuItemSlider(_pzText, _nFont, _nX, _nY, _nWidth, 0, _nRangeLow, _nRangeHigh, _nStep, _pCallback, _nSliderTile, _nCursorTile, _nShowValue)
+{
+    dassert(pnValue != NULL);
+    pValue32 = pnValue;
+    nValue = ClipRange((int)*pnValue, nRangeLow, nRangeHigh);
+}
+
 void CGameMenuItemSlider::Draw(void)
 {
     char buffer[16];
     int height;
-    nValue = pValue ? *pValue : nValue;
+    nValue = pValue ? *pValue : (pValue32 ? (int)*pValue32 : nValue);
     gMenuTextMgr.GetFontInfo(m_nFont, NULL, NULL, &height);
     int shade = bEnable ? 32 : 48;
     int shade2 = bEnable ? 0 : 16;
@@ -1578,7 +1590,7 @@ void CGameMenuItemSlider::Draw(void)
 
 bool CGameMenuItemSlider::Event(CGameMenuEvent &event)
 {
-    nValue = pValue ? *pValue : nValue;
+    nValue = pValue ? *pValue : (pValue32 ? (int)*pValue32 : nValue);
     switch (event.at0)
     {
     case kMenuEventUp:

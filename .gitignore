@@ -4,3 +4,4 @@
 *.o
 *.sfo
 platform/*.o
+src/version-auto.c

@@ -256,6 +256,7 @@ class CGameMenuItemSlider : public CGameMenuItem
 {
 public:
     int *pValue;
+    int32_t *pValue32;
     int nValue;
     int nRangeLow;
     int nRangeHigh;
@@ -267,6 +268,7 @@ public:
     CGameMenuItemSlider();
     CGameMenuItemSlider(const char *_pzText, int _nFont, int _nX, int _nY, int _nWidth, int _nValue, int _nRangeLow, int _nRangeHigh, int _nStep, void(*_pCallback)(CGameMenuItemSlider *), int _nSliderTile, int _nCursorTile, int _nShowValue = kMenuSliderNone);
     CGameMenuItemSlider(const char *_pzText, int _nFont, int _nX, int _nY, int _nWidth, int *pnValue, int _nRangeLow, int _nRangeHigh, int _nStep, void(*_pCallback)(CGameMenuItemSlider *), int _nSliderTile, int _nCursorTile, int _nShowValue = kMenuSliderNone);
+    CGameMenuItemSlider(const char *_pzText, int _nFont, int _nX, int _nY, int _nWidth, int32_t *pnValue, int _nRangeLow, int _nRangeHigh, int _nStep, void(*_pCallback)(CGameMenuItemSlider *), int _nSliderTile, int _nCursorTile, int _nShowValue = kMenuSliderNone);
     virtual void Draw(void);
     virtual bool Event(CGameMenuEvent &);
     virtual bool MouseEvent(CGameMenuEvent &);

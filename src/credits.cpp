@@ -312,7 +312,7 @@ char credPlaySmk(const char *_pzSMK, const char *_pzWAV, int nWav)
     else
     {
         // DOS Blood v1.11: 320x240, 320x320, 640x400, and 640x480 SMKs all display 1:1 and centered in a 640x480 viewport
-        nScale = tabledivide32(scale(65536, ydim << 2, xdim * 3), ((max(nHeight, 240+1u) + 239) / 240));
+        nScale = tabledivide32(scale(65536, ydim << 2, xdim * 3), ((max(nHeight, uint32_t(241)) + 239) / 240));
         nStat = 2|4|8|64|1024;
         renderSetAspect(viewingrange, 65536);
     }

@@ -1038,7 +1038,7 @@ static void pool_free(void *memory)
 }
 #endif
 
-static BYTE oldPri = 0;
+static uint8_t oldPri = 0;
 #endif
 
 void netInitialize(bool bConsole)

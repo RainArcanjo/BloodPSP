@@ -39,7 +39,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "view.h"
 
 #define kMaxClients 256
-#define kMaxSequences 1024
+// Whole Blood maps can activate more than the historical JFBuild limit of
+// 1024 sequences while initialising a level.  Match the port's sprite-scale;
+// the additional ACTIVE records cost only a few KiB on PSP.
+#define kMaxSequences 4096
 
 static ACTIVE activeList[kMaxSequences];
 static int activeCount = 0;

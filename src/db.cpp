@@ -419,9 +419,25 @@ void InsertFree(unsigned short *pList, int nIndex)
 unsigned short dbInsertXSprite(int nSprite)
 {
     int nXSprite = nextXSprite[0];
+    if (nXSprite == 0)
+    {
+        // Some JFBuild paths alter sprite lists while a level is prepared.
+        // Recover from a stale free-chain using the authoritative references.
+        nextXSprite[0] = 0;
+        for (int i = 1; i < kMaxXSprites; ++i)
+            if (xsprite[i].reference < 0)
+                InsertFree(nextXSprite, i);
+        nXSprite = nextXSprite[0];
+#if defined(__PSP__)
+        initprintf("PSP map: rebuilt XSprite free list on demand (head=%d)\n", nXSprite);
+#endif
+    }
     nextXSprite[0] = nextXSprite[nXSprite];
     if (nXSprite == 0)
     {
+#if defined(__PSP__)
+        initprintf("PSP map: XSprite pool exhausted (sprite=%d, limit=%d, map sprites=%d)\n", nSprite, kMaxXSprites, Numsprites);
+#endif
         ThrowError("Out of free XSprites");
     }
     memset(&xsprite[nXSprite], 0, sizeof(XSPRITE));
@@ -774,7 +790,23 @@ int dbLoadMap(const char *pPath, int *pX, int *pY, int *pZ, short *pAngle, short
     memset(yvel,0,sizeof(yvel));
     memset(zvel,0,sizeof(zvel));
     memset(xsprite,0,sizeof(xsprite));
+    memset(xwall,0,sizeof(xwall));
+    memset(xsector,0,sizeof(xsector));
     memset(sprite,0,kMaxSprites*sizeof(spritetype));
+
+    // A level load replaces the extended-object tables as well as the BUILD
+    // sprites.  Recreate every free list here: otherwise a prior map/session
+    // can leave nextXSprite[0] at zero even when almost all XSprite slots are
+    // unused, preventing the player sprite from being created.
+    InitFreeList(nextXSprite, kMaxXSprites);
+    for (int i = 1; i < kMaxXSprites; ++i)
+        xsprite[i].reference = -1;
+    InitFreeList(nextXWall, kMaxXWalls);
+    for (int i = 1; i < kMaxXWalls; ++i)
+        xwall[i].reference = -1;
+    InitFreeList(nextXSector, kMaxXSectors);
+    for (int i = 1; i < kMaxXSectors; ++i)
+        xsector[i].reference = -1;
 
     #ifdef NOONE_EXTENSIONS
     gModernMap = false;
@@ -1293,8 +1325,34 @@ int dbLoadMap(const char *pPath, int *pX, int *pY, int *pZ, short *pAngle, short
         gSysRes.Unlock(pNode);
         return -1;
     }
+    // The map loader assigns extended-object slots directly.  Rebuild the
+    // free chains from their references once loading is complete; this keeps
+    // runtime allocations (notably the player) independent of any stale or
+    // partially consumed chain from a previous map.
+    nextXSprite[0] = 0;
+    for (int i = 1; i < kMaxXSprites; ++i)
+        if (xsprite[i].reference < 0)
+            InsertFree(nextXSprite, i);
+    nextXWall[0] = 0;
+    for (int i = 1; i < kMaxXWalls; ++i)
+        if (xwall[i].reference < 0)
+            InsertFree(nextXWall, i);
+    nextXSector[0] = 0;
+    for (int i = 1; i < kMaxXSectors; ++i)
+        if (xsector[i].reference < 0)
+            InsertFree(nextXSector, i);
+
     if (pCRC)
         *pCRC = nCRC;
+#if defined(__PSP__)
+    {
+        int usedXSprites = 0;
+        for (int i = 1; i < kMaxXSprites; ++i)
+            usedXSprites += xsprite[i].reference >= 0;
+        initprintf("PSP map: header sprites=%d, loaded sprites=%d, XSprites=%d/%d\n",
+                   mapHeader.at23, Numsprites, usedXSprites, kMaxXSprites - 1);
+    }
+#endif
     gSysRes.Unlock(pNode);
     PropagateMarkerReferences();
     if (byte_1A76C8)

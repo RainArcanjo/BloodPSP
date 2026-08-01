@@ -245,21 +245,22 @@ static const char * mouseanalogdefaults[MAXMOUSEAXES] =
 #if defined(__vita__) || defined(__PSP__)
 static const char * joystickdefaults[MAXJOYBUTTONSANDHATS] =
    {
-   "Jump", // Cross
-   "Open", // Circle
-   "Crouch", // Square
-   "Inventory_Right", // Triangle
-   "Map_Toggle", // Select
-   "", // 
+   "Weapon_Fire", // Cross
+   "Strafe", // Circle
+   "Run", // Square
+   "Open", // Triangle
+   "Previous_Weapon", // L
+   "Weapon_Special_Fire", // R
    "", // Start
-   "", //
-   "", //
-   "Weapon_Special_Fire", // L
-   "Weapon_Fire", // R
+   "Map_Toggle", // Select
    "Inventory", // Up
    "Inventory_Use", // Down
    "Previous_Weapon", // Left
    "Next_Weapon", // Right
+   "", // Home
+   "", // Hold
+   "", // Vol+
+   "", // Vol-
    };
 
 
@@ -285,10 +286,10 @@ static const char * joystickclickeddefaults[MAXJOYBUTTONSANDHATS] =
 
 static const char * joystickanalogdefaults[MAXJOYAXES] =
    {
-   "analog_strafing",
-   "analog_moving",
    "analog_turning",
-   "analog_lookingupanddown",
+   "analog_moving",
+   "",
+   "",
    };
 
 

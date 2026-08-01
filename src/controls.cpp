@@ -70,7 +70,18 @@ void ctrlInit(void)
     CONFIG_SetupMouse();
     CONFIG_SetupJoystick();
 
+#ifdef __PSP__
+    // Desktop-generated configs normally contain UseJoystick=0.  PSP has no
+    // keyboard, so always activate the handheld defaults after config load.
+    gSetup.usejoystick = 1;
+    gSetup.usemouse = 0;
+    CONFIG_SetJoystickDefaults(0);
+#endif
     CONTROL_JoystickEnabled = (gSetup.usejoystick && CONTROL_JoyPresent);
+#ifdef __PSP__
+    initprintf("PSP controls: enabled=%d present=%d axes=%d buttons=%d\n",
+               CONTROL_JoystickEnabled, CONTROL_JoyPresent, joynumaxes, joynumbuttons);
+#endif
 #ifdef __vita__
     CONTROL_MouseEnabled = 0;
 #else

@@ -23,7 +23,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #pragma once
 
 #ifndef EDUKE32
+#if defined(__PSP__)
+// Whole Blood maps can use more extended sprites than the historical JFBuild
+// default. Keep this aligned with JFBuild's 4096-sprite world limit so there
+// is also room for the player and runtime effects after a map is loaded.
+#define kMaxXSprites 4096
+#else
 #define kMaxXSprites 2048
+#endif
 #define kMaxXWalls 512
 #define kMaxXSectors 512
 #else

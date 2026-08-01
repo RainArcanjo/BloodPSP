@@ -1225,7 +1225,9 @@ int16_t startang, startsectnum;
 
 void StartLevel(GAMEOPTIONS *gameOptions)
 {
+    initprintf("PSP level: begin %s\n", gameOptions->zLevelName);
     EndLevel();
+    initprintf("PSP level: previous state cleared\n");
     gInput = {};
     gStartNewGame = 0;
     ready2send = 0;
@@ -1244,7 +1246,15 @@ void StartLevel(GAMEOPTIONS *gameOptions)
             && gEpisodeInfo[gGameOptions.nEpisode].cutsceneASmkPath[0])
             gGameOptions.uGameFlags |= 4;
         if ((gGameOptions.uGameFlags&4) && gDemo.at1 == 0 && !Bstrlen(gGameOptions.szUserMap))
+        {
+#if defined(__PSP__)
+            // Cutscenes use Smacker, which is intentionally absent from the
+            // software-renderer MVP. Continue directly into the level.
+            initprintf("PSP level: intro cutscene skipped (video disabled)\n");
+#else
             levelPlayIntroScene(gGameOptions.nEpisode);
+#endif
+        }
 
         ///////
         gGameOptions.weaponsV10x = gWeaponsV10x;
@@ -1288,6 +1298,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     }
     bVanilla = gDemo.at1 && gDemo.m_bLegacy;
     drawLoadingScreen();
+    initprintf("PSP level: loading screen drawn\n");
 #ifndef EDUKE32
     videoNextPage();
 #endif
@@ -1296,6 +1307,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         gQuitGame = true;
         return;
     }
+    initprintf("PSP level: map loaded\n");
     char levelName[BMAX_PATH];
     G_LoadMapHack(levelName, gameOptions->zLevelName);
     wsrand(gameOptions->uMapCRC);
@@ -1358,10 +1370,36 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         }
         #endif
     }
+#if defined(__PSP__)
+    auto pspLogSpritePools = [](const char *stage)
+    {
+        int active = 0, usedX = 0;
+        for (int i = 0; i < kMaxSprites; ++i)
+            active += sprite[i].statnum < kMaxStatus;
+        for (int i = 1; i < kMaxXSprites; ++i)
+            usedX += xsprite[i].reference >= 0;
+        initprintf("PSP level: %s: active=%d, Numsprites=%d, XSprites=%d/%d\n",
+                   stage, active, Numsprites, usedX, kMaxXSprites - 1);
+    };
+    pspLogSpritePools("before world init");
+#endif
     InitSectorFX();
+#if defined(__PSP__)
+    pspLogSpritePools("after InitSectorFX");
+#endif
     warpInit();
+#if defined(__PSP__)
+    pspLogSpritePools("after warpInit");
+#endif
     actInit(false);
+#if defined(__PSP__)
+    pspLogSpritePools("after actInit");
+#endif
     evInit();
+#if defined(__PSP__)
+    pspLogSpritePools("after evInit");
+#endif
+    initprintf("PSP level: world systems initialized\n");
     for (int i = connecthead; i >= 0; i = connectpoint2[i])
     {
         if (!(gameOptions->uGameFlags&1)) // if new game
@@ -1378,6 +1416,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
             playerResetScores(i);
         playerStart(i, 1);
     }
+    initprintf("PSP level: player initialized\n");
     if (gameOptions->uGameFlags&1)
     {
         for (int i = connecthead; i >= 0; i = connectpoint2[i])
@@ -1405,6 +1444,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     gameOptions->uGameFlags &= ~3;
     scrSetDac();
     PreloadCache();
+    initprintf("PSP level: cache preloaded\n");
 #ifdef __AMIGA__
     if (gDemo.at1)
     {
@@ -1423,6 +1463,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     if (!bVanilla && !gMe->packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
         sfxSetReverb(0);
     ambInit();
+    initprintf("PSP level: post-load systems initialized\n");
     netResetState();
     gCacheMiss = 0;
     gFrame = 0;
@@ -2549,6 +2590,7 @@ RESTART:
 #endif
     initprintf("Waiting for network players!\n");
     netWaitForEveryone(0);
+    initprintf("PSP level: network sync complete\n");
     initprintf("PSP startup: network wait complete\n");
     if (gRestartGame)
     {

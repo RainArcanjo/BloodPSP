@@ -43,7 +43,7 @@ extern "C" {
 #define MAXSPRITESV5 4096
 #define MAXTILESV5   4096
 
-#ifdef __AMIGA__
+#if defined(__AMIGA__) || defined(__PSP__)
 #define MAXSECTORS MAXSECTORSV7
 #define MAXWALLS MAXWALLSV7
 #define MAXSPRITES MAXSPRITESV7
@@ -53,7 +53,7 @@ extern "C" {
 #define MAXSPRITES MAXSPRITESV8
 #endif
 
-#ifdef __AMIGA__
+#if defined(__AMIGA__) || defined(__PSP__)
 #define MAXTILES 6144
 #define MAXVOXELS 80
 #else

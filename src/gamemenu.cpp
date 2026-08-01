@@ -38,6 +38,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #ifdef __vita__
 #include <vitasdk.h>
+#elif defined(__PSP__)
+#include <pspctrl.h>
 #endif
 
 CMenuTextMgr gMenuTextMgr;
@@ -266,6 +268,34 @@ void CGameMenuMgr::Process(void)
 		}
 		oldpad = pad.buttons;
 	}
+#elif defined(__PSP__)
+    if (!pActiveMenu->MouseEvent(event)) {
+#define PSP_SINGLE_CLICK(x) ((pad.Buttons & (x)) && !(oldpad & (x)))
+        static uint32_t oldpad = 0;
+        SceCtrlData pad;
+        sceCtrlPeekBufferPositive(&pad, 1);
+        if (PSP_SINGLE_CLICK(PSP_CTRL_CROSS) || PSP_SINGLE_CLICK(PSP_CTRL_START)) {
+            event.at0 = kMenuEventEnter;
+            event.at2 = 1;
+        } else if (PSP_SINGLE_CLICK(PSP_CTRL_DOWN)) {
+            event.at0 = kMenuEventDown;
+            event.at2 = 1;
+        } else if (PSP_SINGLE_CLICK(PSP_CTRL_UP)) {
+            event.at0 = kMenuEventUp;
+            event.at2 = 1;
+        } else if (PSP_SINGLE_CLICK(PSP_CTRL_TRIANGLE) || PSP_SINGLE_CLICK(PSP_CTRL_CIRCLE)) {
+            event.at0 = kMenuEventEscape;
+            event.at2 = 1;
+        } else if (PSP_SINGLE_CLICK(PSP_CTRL_LEFT)) {
+            event.at0 = kMenuEventLeft;
+            event.at2 = 1;
+        } else if (PSP_SINGLE_CLICK(PSP_CTRL_RIGHT)) {
+            event.at0 = kMenuEventRight;
+            event.at2 = 1;
+        }
+        oldpad = pad.Buttons;
+#undef PSP_SINGLE_CLICK
+    }
 #else
 	if (!pActiveMenu->MouseEvent(event) && (key = keyGetScan()) != 0 )
     {

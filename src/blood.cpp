@@ -1398,6 +1398,33 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     evInit();
 #if defined(__PSP__)
     pspLogSpritePools("after evInit");
+
+    // The JFBuild loader leaves the unused slots marked kStatFree, but an
+    // older engine path can lose only the head of that list before playerInit.
+    // Rebuild it from the authoritative per-sprite status rather than letting
+    // the first player spawn fall through to the empty purge list.
+    if (headspritestat[kMaxStatus] < 0)
+    {
+        int freeSprites = 0;
+        for (int i = 0; i < kMaxSprites; ++i)
+            freeSprites += sprite[i].statnum == kMaxStatus || sprite[i].statnum == kStatNothing;
+
+        if (freeSprites > 0)
+        {
+            headspritestat[kMaxStatus] = -1;
+            gStatCount[kMaxStatus] = 0;
+            for (int i = 0; i < kMaxSprites; ++i)
+            {
+                if (sprite[i].statnum == kMaxStatus || sprite[i].statnum == kStatNothing)
+                    InsertSpriteStat(i, kMaxStatus);
+            }
+            initprintf("PSP map: rebuilt free BUILD sprite list (%d slots)\n", freeSprites);
+        }
+        else
+        {
+            initprintf("PSP map: free BUILD sprite list empty with no recoverable slots\n");
+        }
+    }
 #endif
     initprintf("PSP level: world systems initialized\n");
     for (int i = connecthead; i >= 0; i = connectpoint2[i])
@@ -1417,6 +1444,9 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         playerStart(i, 1);
     }
     initprintf("PSP level: player initialized\n");
+#if defined(__PSP__)
+    initprintf("PSP level: restoring level state\n");
+#endif
     if (gameOptions->uGameFlags&1)
     {
         for (int i = connecthead; i >= 0; i = connectpoint2[i])
@@ -1442,7 +1472,13 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         }
     }
     gameOptions->uGameFlags &= ~3;
+#if defined(__PSP__)
+    initprintf("PSP level: setting DAC\n");
+#endif
     scrSetDac();
+#if defined(__PSP__)
+    initprintf("PSP level: DAC set; preloading cache\n");
+#endif
     PreloadCache();
     initprintf("PSP level: cache preloaded\n");
 #ifdef __AMIGA__

@@ -1,5 +1,11 @@
 // Single-player network stub for the PSP MVP.
 #include "network.h"
+#include "mmulti.h"
+#include "blood.h"
+#include "globals.h"
+#include "levels.h"
+
+#include <string.h>
 
 char packet[576];
 bool gStartNewGame = false;
@@ -16,8 +22,37 @@ char gNetAddress[32];
 int gNetPort = kNetDefaultPort;
 PKT_STARTGAME gPacketStartGame;
 
-void netResetState(void) {}
-void netResetToSinglePlayer(void) { gNetMode = NETWORK_NONE; gInitialNetPlayers = 1; }
+void netResetToSinglePlayer(void)
+{
+    // Keep every traversal of connectpoint2 inside the sole local player.
+    // The regular network backend initializes this in netResetToSinglePlayer;
+    // an all-zero static array instead describes an invalid 0 -> 0 loop.
+    myconnectindex = connecthead = 0;
+    gInitialNetPlayers = gNetPlayers = numplayers = 1;
+    for (int i = 0; i < kMaxPlayers; ++i)
+        connectpoint2[i] = -1;
+    gGameOptions.nGameType = 0;
+    gNetMode = NETWORK_NONE;
+}
+
+void netResetState(void)
+{
+    netResetToSinglePlayer();
+    gNetFifoClock = gFrameClock = totalclock = 0;
+    gNetFifoMasterTail = 0;
+    gPredictTail = 0;
+    gNetFifoTail = 0;
+    memset(gNetFifoHead, 0, sizeof(gNetFifoHead));
+    memset(gCheckFifo, 0, sizeof(gCheckFifo));
+    memset(myMinLag, 0, sizeof(myMinLag));
+    otherMinLag = 0;
+    myMaxLag = 0;
+    memset(gCheckHead, 0, sizeof(gCheckHead));
+    gSendCheckTail = 0;
+    gCheckTail = 0;
+    bOutOfSync = false;
+    gBufferJitter = 1;
+}
 void netBroadcastMessage(int, const char *) {}
 void netWaitForEveryone(char) {}
 void sub_7AC28(const char *) {}

@@ -2315,6 +2315,16 @@ int app_main(int argc, char const * const * argv)
     int const readSetup =
 #endif
     CONFIG_ReadSetup();
+#ifdef __PSP__
+    // The desktop configuration may retain a 16 MiB cache request.  On PSP
+    // that leaves too little heap for RFF resources loaded after the engine
+    // starts (and manifests as an invalid jump after sound initialization).
+    // Keep the user config intact, but clamp its effective value for this
+    // platform.
+    if (MAXCACHE1DSIZE > 8 * 1024 * 1024)
+        MAXCACHE1DSIZE = 8 * 1024 * 1024;
+    initprintf("PSP cache limit: %d bytes\n", MAXCACHE1DSIZE);
+#endif
     if (bCustomName)
         strcpy(szPlayerName, gPName);
 
@@ -2380,6 +2390,14 @@ int app_main(int argc, char const * const * argv)
 
     initprintf("Initializing Build 3D engine\n");
     scrInit();
+
+#ifndef EDUKE32
+    // In the JFBuild backport the palette-loader hook is only installed by
+    // the EDuke32 path.  Load the Blood PAL/PLU resources explicitly so the
+    // 8-bit framebuffer has a populated RGB palette on PSP.
+    scrLoadPalette();
+    scrSetPalette(0);
+#endif
 
 #ifdef __AMIGA__
     signal(SIGABRT, (_sig_func_ptr)QuitGame);
@@ -2488,34 +2506,50 @@ int app_main(int argc, char const * const * argv)
     viewResizeView(gViewSize);
     initprintf("Initializing sound system\n");
     sndInit();
+    initprintf("PSP startup: sndInit complete\n");
     sfxInit();
+    initprintf("PSP startup: sfxInit complete\n");
     gChoke.sub_83ff0(518, sub_84230);
+    initprintf("PSP startup: choke QAV complete\n");
     if (bAddUserMap)
     {
         levelAddUserMap(gUserMapFilename);
         gStartNewGame = 1;
     }
     SetupMenus();
+    initprintf("PSP startup: menus complete\n");
     videoSetViewableArea(0, 0, xdim - 1, ydim - 1);
+    initprintf("PSP startup: viewable area complete\n");
 
 #ifdef EDUKE32
     OSD_Exec("autoexec.cfg");
 #endif
 
+#if defined(__PSP__)
+    // The PSP MVP has no Smacker/video backend yet.  Do not enter the DOS
+    // logo sequence, which attempts to play an opening video before menus.
+    initprintf("PSP startup: opening logos skipped (video disabled)\n");
+#else
     if (!bQuickStart)
         credLogosDos();
+#endif
+    initprintf("PSP startup: logos complete\n");
     scrSetDac();
+    initprintf("PSP startup: DAC complete\n");
 RESTART:
     netResetState();
+    initprintf("PSP startup: network state reset\n");
     gViewIndex = myconnectindex;
     gMe = gView = &gPlayer[myconnectindex];
     netBroadcastPlayerInfo(myconnectindex);
+    initprintf("PSP startup: player info broadcast\n");
 #ifdef __AMIGA__
     // TODO send this upstream!
     if (numplayers > 1)
 #endif
     initprintf("Waiting for network players!\n");
     netWaitForEveryone(0);
+    initprintf("PSP startup: network wait complete\n");
     if (gRestartGame)
     {
         // Network error
@@ -2526,6 +2560,7 @@ RESTART:
         goto RESTART;
     }
     UpdateNetworkMenus();
+    initprintf("PSP startup: network menus complete\n");
     if (!gDemo.at0 && gDemo.nDemosFound > 0 && gGameOptions.nGameType == 0 && !bNoDemo)
         gDemo.SetupPlayback(NULL);
     viewSetCrosshairColor(CrosshairColors.r, CrosshairColors.g, CrosshairColors.b);
@@ -2547,6 +2582,7 @@ RESTART:
         if (gGameOptions.nGameType > 0)
             gGameMenuMgr.Push(&menuNetStart, 1);
     }
+    initprintf("PSP startup: main menu ready\n");
     ready2send = 1;
     static bool frameJustDrawn;
     while (!gQuitGame)

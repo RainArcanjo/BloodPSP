@@ -231,6 +231,7 @@ void begindrawing(void) { if (!offscreenrendering) { frameplace = (intptr_t)fram
 void enddrawing(void) {}
 void showframe(void)
 {
+    static int framespresented;
     uint16_t *dst;
     int x, y;
     if (offscreenrendering || !framebuffer || !vram) return;
@@ -239,17 +240,36 @@ void showframe(void)
     for (y = 0; y < yres; ++y)
         for (x = 0; x < xres; ++x)
             dst[(y + 36) * PSP_FB_STRIDE + x + 80] = palette565[framebuffer[y * xres + x]];
+    if (framespresented == 0)
+        debugprintf("PSP video: first frame presented (pixel0=%u, color0=%04x)\n",
+                    framebuffer[0], palette565[framebuffer[0]]);
+    if (framespresented == 60)
+        debugprintf("PSP video: 60 frames presented (centre=%u, color=%04x)\n",
+                    framebuffer[100 * xres + 160], palette565[framebuffer[100 * xres + 160]]);
+    // Temporary display-path canary: a small magenta square must be visible
+    // at the top-left of the PSP LCD once regular frames are being shown.
+    if (framespresented >= 60)
+        for (y = 0; y < 12; ++y)
+            for (x = 0; x < 12; ++x)
+                dst[y * PSP_FB_STRIDE + x] = 0xf81f;
+    ++framespresented;
     sceDisplayWaitVblankStart();
     sceDisplaySetFrameBuf(dst, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 }
 int setpalette(int UNUSED(start), int UNUSED(num), unsigned char * UNUSED(dapal))
 {
+    static int paletteupdates;
     int i;
     for (i = 0; i < 256; ++i) {
         palette565[i] = (uint16_t)(((curpalettefaded[i].r & 0xf8) << 8) |
                                    ((curpalettefaded[i].g & 0xfc) << 3) |
                                    (curpalettefaded[i].b >> 3));
     }
+    if (paletteupdates++ < 3)
+        debugprintf("PSP palette: #1=%u,%u,%u #100=%u,%u,%u #238=%u,%u,%u\n",
+                    curpalettefaded[1].r, curpalettefaded[1].g, curpalettefaded[1].b,
+                    curpalettefaded[100].r, curpalettefaded[100].g, curpalettefaded[100].b,
+                    curpalettefaded[238].r, curpalettefaded[238].g, curpalettefaded[238].b);
     return 0;
 }
 int setgamma(float UNUSED(gamma)) { return 0; }

@@ -1,0 +1,6 @@
+*.elf
+*.prx
+*.pbp
+*.o
+*.sfo
+platform/*.o

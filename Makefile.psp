@@ -1,0 +1,17 @@
+TARGET := jfbloodpsp_bootstrap
+OBJS := platform/psp_bootstrap.o
+
+# Kept here so that platform objects and the future game target use the same
+# host-compiler compatibility mode. GCC 15 defaults to C23 on this host while
+# the historical JFBuild code expects GNU C17 semantics.
+CFLAGS += -std=gnu17 -I jfbuild-vita/include -I jfbuild-vita/src
+
+PSP_FW_VERSION := 600
+BUILD_PRX := 1
+EXTRA_TARGETS := EBOOT.PBP
+PSP_EBOOT_TITLE := JFBlood PSP Bootstrap
+
+include $(PSPSDK)/lib/build.mak
+
+.PHONY: platform-check
+platform-check: platform/psplayer.o

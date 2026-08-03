@@ -77,8 +77,9 @@ static uint16_t display_buffers[2][512 * 272] __attribute__((aligned(64)));
 static int drawbuffer;
 static FILE *psp_log;
 static int psp_log_enabled = 1;
-int psp_perf_hud;
 #if defined(PSP_DIAGNOSTIC_BUILD)
+int psp_perf_hud;
+
 unsigned int psp_present_us;
 #endif
 
@@ -103,6 +104,40 @@ static uint64_t psp_ticks(void)
     uint64_t ticks = 0;
     sceRtcGetCurrentTick(&ticks);
     return ticks;
+}
+
+// The VSH quit request is delivered asynchronously. A callback thread that
+// sleeps with the CB variant is required for the HOME/XMB flow on real PSPs.
+static int psp_exit_callback(int arg1, int arg2, void *common)
+{
+    (void)arg1;
+    (void)arg2;
+    (void)common;
+    sceKernelExitGame();
+    return 0;
+}
+
+static int psp_callback_thread(SceSize args, void *argp)
+{
+    SceUID callback;
+    (void)args;
+    (void)argp;
+
+    callback = sceKernelCreateCallback("Exit Callback", psp_exit_callback, NULL);
+    if (callback >= 0)
+    {
+        sceKernelRegisterExitCallback(callback);
+        sceKernelSleepThreadCB();
+    }
+    return 0;
+}
+
+static void psp_setup_callbacks(void)
+{
+    SceUID thread = sceKernelCreateThread("Exit Callback Thread", psp_callback_thread,
+                                          0x11, 0x1000, PSP_THREAD_ATTR_USER, NULL);
+    if (thread >= 0)
+        sceKernelStartThread(thread, 0, NULL);
 }
 
 static void shutdownvideo(void)
@@ -173,6 +208,7 @@ int main(int argc, char *argv[])
     // Match established PSP ports: do not let an IEEE-754 status flag turn
     // into an unhandled hardware exception in the main game thread.
     pspSdkDisableFPUExceptions();
+    psp_setup_callbacks();
 
     _buildargc = argc;
     _buildargv = (const char **)argv;
@@ -438,7 +474,6 @@ static void psp_apply_keyboard_controls(uint32_t buttons)
     psp_set_key(PSP_SC_TAB, !!(buttons & PSP_CTRL_SELECT));
     psp_set_key(PSP_SC_CAPSLOCK, l1Square);
     psp_set_key(PSP_SC_QUOTE, !!(buttons & PSP_CTRL_TRIANGLE) && !l1Triangle);
-    psp_set_key(PSP_SC_ESCAPE, !!(buttons & PSP_CTRL_START));
 }
 
 int handleevents(void)

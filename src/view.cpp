@@ -66,11 +66,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "nnexts.h"
 #endif
 
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 extern "C" int psp_perf_hud;
-# if defined(PSP_DIAGNOSTIC_BUILD)
 extern "C" unsigned int psp_present_us;
-# endif
 #endif
 
 struct VIEW {
@@ -4419,9 +4417,9 @@ int32_t gShowFps, gFramePeriod;
 void viewPrintFPS(void)
 {
 #ifndef EDUKE32
-# if defined(__PSP__)
+# if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     if (!psp_perf_hud) return;
-#  if defined(PSP_DIAGNOSTIC_BUILD)
+
     // U and R come from the game loop in milliseconds. P is the previous
     // frame's CPU presentation work: software scaling plus cache writeback.
     double renderTime = g_gameUpdateAndDrawTime - g_gameUpdateTime;
@@ -4431,13 +4429,6 @@ void viewPrintFPS(void)
     int32_t chars = Bsprintf(tempbuf, "%dfps U%.1f R%.1f P%.1f", gFrameRate,
                              g_gameUpdateTime, renderTime, psp_present_us * 0.001);
     printext256(windowx2-(chars<<(3-x))-2, windowy1+2, whitecol, -1, tempbuf, x);
-#  else
-    // Release keeps only a cheap FPS counter: no timing probes and no logs.
-    int32_t x = (xdim < 640);
-    char tempbuf[16];
-    int32_t chars = sprintf(tempbuf, "%d fps", gFrameRate);
-    printext256(windowx2-(chars<<(3-x))-2, windowy1+2, whitecol, -1, tempbuf, x);
-#  endif
 # else
     if (!gShowFps) return;
 

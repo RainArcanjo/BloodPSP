@@ -65,7 +65,7 @@ void SetWeaponsV10X(CGameMenuItemZBool*);
 void SetSlopeTilting(CGameMenuItemZBool *);
 void SetViewBobbing(CGameMenuItemZBool *);
 void SetViewSwaying(CGameMenuItemZBool *);
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 void SetPSPPerformanceHUD(CGameMenuItemZBool *);
 extern "C" int psp_perf_hud;
 #endif
@@ -299,7 +299,7 @@ CGameMenuItemZCycle itemCycleShowWeapons("SHOW WEAPONS:", 3, 66, 120, 180, 0, Se
 CGameMenuItemZBool boolSlopeTilting("SLOPE TILTING:", 3, 66, 130, 180, gSlopeTilting, SetSlopeTilting, NULL, NULL);
 CGameMenuItemZBool boolViewBobbing("VIEW BOBBING:", 3, 66, 140, 180, gViewVBobbing, SetViewBobbing, NULL, NULL);
 CGameMenuItemZBool boolViewSwaying("VIEW SWAYING:", 3, 66, 150, 180, gViewHBobbing, SetViewSwaying, NULL, NULL);
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 CGameMenuItemZBool boolPSPPerformanceHUD("PERFORMANCE HUD:", 3, 66, 160, 180, false, SetPSPPerformanceHUD, NULL, NULL);
 CGameMenuItemChain itemOption2("VIDEO MODE...", 3, 0, 170, 320, 1, &menuOptionsDisplayMode, -1, SetupVideoModeMenu, 0);
 #elif !defined(EDUKE32)
@@ -506,7 +506,7 @@ CGameMenuItemZBool itemOptionsDisplayBoolLevelStats("LEVEL STATS:", 3, 66, 100, 
 CGameMenuItemZBool itemOptionsDisplayBoolPowerupDuration("POWERUP DURATION:", 3, 66, 110, 180, gPowerupDuration, SetPowerupDuration, NULL, NULL);
 CGameMenuItemZBool itemOptionsDisplayBoolShowMapTitle("MAP TITLE:", 3, 66, 120, 180, gShowMapTitle, SetShowMapTitle, NULL, NULL);
 CGameMenuItemZBool itemOptionsDisplayBoolMessages("MESSAGES:", 3, 66, 130, 180, gMessageState, SetMessages, NULL, NULL);
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 CGameMenuItemZBool itemOptionsDisplayPSPPerformanceHUD("PERFORMANCE HUD:", 3, 66, 140, 180, false, SetPSPPerformanceHUD, NULL, NULL);
 #endif
 #ifdef EDUKE32
@@ -960,7 +960,7 @@ void SetupOptionsOldMenu(void)
     boolSlopeTilting.at20 = gSlopeTilting;
     boolViewBobbing.at20 = gViewVBobbing;
     boolViewSwaying.at20 = gViewHBobbing;
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     boolPSPPerformanceHUD.at20 = psp_perf_hud;
 #endif
     boolMessages.at20 = gGameMessageMgr.state;
@@ -980,7 +980,7 @@ void SetupOptionsOldMenu(void)
     menuOptionsOld.Add(&boolSlopeTilting, false);
     menuOptionsOld.Add(&boolViewBobbing, false);
     menuOptionsOld.Add(&boolViewSwaying, false);
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     menuOptionsOld.Add(&boolPSPPerformanceHUD, false);
 #endif
     menuOptionsOld.Add(&itemOption2, false);
@@ -1365,7 +1365,7 @@ void SetupOptionsMenu(void)
     menuOptionsDisplay.Add(&itemOptionsDisplayBoolPowerupDuration, false);
     menuOptionsDisplay.Add(&itemOptionsDisplayBoolShowMapTitle, false);
     menuOptionsDisplay.Add(&itemOptionsDisplayBoolMessages, false);
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     menuOptionsDisplay.Add(&itemOptionsDisplayPSPPerformanceHUD, false);
 #endif
 #ifdef EDUKE32
@@ -1382,7 +1382,7 @@ void SetupOptionsMenu(void)
     itemOptionsDisplayBoolPowerupDuration.at20 = gPowerupDuration;
     itemOptionsDisplayBoolShowMapTitle.at20 = gShowMapTitle;
     itemOptionsDisplayBoolMessages.at20 = gMessageState;
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     itemOptionsDisplayPSPPerformanceHUD.at20 = psp_perf_hud;
 #endif
 #ifdef EDUKE32
@@ -1738,7 +1738,7 @@ void SetViewSwaying(CGameMenuItemZBool *pItem)
     gViewHBobbing = pItem->at20;
 }
 
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 void SetPSPPerformanceHUD(CGameMenuItemZBool *pItem)
 {
     psp_perf_hud = pItem->at20;

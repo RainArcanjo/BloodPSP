@@ -24,14 +24,15 @@ The PSP port reads `nblood.cfg` beside `EBOOT.PBP`.
 PSPLog = 1       ; diagnostic build only: write jfblood.log and nblood.log
 
 [Options]
-PSPPerfHUD = 1   ; show the FPS counter; diagnostic additionally shows U/R/P ms
+PSPPerfHUD = 1   ; diagnostic only: show FPS, update (U), renderer (R), presentation (P)
 ```
 
-`PSPPerfHUD` is available in both builds through **OPTIONS → DISPLAY SETUP →
-PERFORMANCE HUD**. It never enables logging in the release build. Choose the
-rendering resolution through **DISPLAY SETUP → VIDEO MODE → RESOLUTION**, then
-select **APPLY CHANGES**: `320 x 200` is the fast classic renderer scaled to
-the 480×272 LCD, while `480 x 272` renders natively for sharper output.
+`PSPPerfHUD` is available only in the diagnostic build through **OPTIONS -> DISPLAY
+SETUP -> PERFORMANCE HUD**. The release contains neither this overlay nor its
+timing work. Choose the rendering resolution through **DISPLAY SETUP -> VIDEO
+MODE -> RESOLUTION**, then select **APPLY CHANGES**: `320 x 200` is the fast
+classic renderer scaled to the 480x272 LCD, while `480 x 272` renders natively
+for sharper output.
 ## PSP default layout
 
 | PSP input | Game action |

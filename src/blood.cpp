@@ -87,6 +87,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #ifdef __vita__
 #include <vitasdk.h>
+#elif defined(__PSP__)
+#include <pspctrl.h>
 #endif
 
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
@@ -1784,6 +1786,26 @@ void LocalKeys(void)
         }
     }
     oldpad = pad.buttons;
+#elif defined(__PSP__)
+    // Start is handled directly instead of relying on a synthetic keyboard
+    // event: on PSP this reliably opens the pause/menu path while in-game.
+    static uint32_t oldPspButtons;
+    SceCtrlData pspPad;
+    sceCtrlPeekBufferPositive(&pspPad, 1);
+    if ((pspPad.Buttons & PSP_CTRL_START) && !(oldPspButtons & PSP_CTRL_START))
+    {
+        keyFlushScans();
+        if (gGameStarted && (gPlayer[myconnectindex].pXSprite->health != 0 || gGameOptions.nGameType > 0))
+        {
+            if (!gGameMenuMgr.m_bActive)
+                gGameMenuMgr.Push(&menuMainWithSave, -1);
+        }
+        else if (!gGameMenuMgr.m_bActive)
+        {
+            gGameMenuMgr.Push(&menuMain, -1);
+        }
+    }
+    oldPspButtons = pspPad.Buttons;
 #endif
     if ((key = keyGetScan()) != 0)
     {

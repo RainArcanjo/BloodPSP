@@ -78,8 +78,8 @@ void ctrlInit(void)
     CONFIG_SetJoystickDefaults(0);
 #endif
     CONTROL_JoystickEnabled = (gSetup.usejoystick && CONTROL_JoyPresent);
-#ifdef __PSP__
-    initprintf("PSP controls: enabled=%d present=%d axes=%d buttons=%d\n",
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    PSP_DIAG_LOG("PSP controls: enabled=%d present=%d axes=%d buttons=%d\n",
                CONTROL_JoystickEnabled, CONTROL_JoyPresent, joynumaxes, joynumbuttons);
 #endif
 #ifdef __vita__

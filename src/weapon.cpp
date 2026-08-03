@@ -252,7 +252,7 @@ void WeaponDraw(PLAYER *pPlayer, int a2, int x, int y, int a5)
         v4 = pQAV->at10 - pPlayer->weaponTimer;
     pQAV->x = x;
     pQAV->y = y;
-#ifdef __PSP__
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     static int pspWeaponLogged;
     if (!pspWeaponLogged)
     {
@@ -265,7 +265,7 @@ void WeaponDraw(PLAYER *pPlayer, int a2, int x, int y, int a5)
                     nTile = pQAV->frames[nFrame].tiles[i].picnum;
                     break;
                 }
-        initprintf("PSP render: weapon qav=%d frame=%d tile=%d\n", pPlayer->weaponQav, nFrame, nTile);
+        PSP_DIAG_LOG("PSP render: weapon qav=%d frame=%d tile=%d\n", pPlayer->weaponQav, nFrame, nTile);
         pspWeaponLogged = 1;
     }
 #endif

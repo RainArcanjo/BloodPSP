@@ -66,6 +66,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "nnexts.h"
 #endif
 
+#if defined(__PSP__)
+extern "C" int psp_perf_hud;
+# if defined(PSP_DIAGNOSTIC_BUILD)
+extern "C" unsigned int psp_present_us;
+# endif
+#endif
+
 struct VIEW {
     int at0;
     int at4;
@@ -3982,15 +3989,15 @@ RORHACK:
         yax_preparedrawrooms();
         renderDrawRoomsQ16(cX, cY, cZ, cA, q16horiz + fix16_from_int(defaultHoriz) + deliriumPitchI, nSectnum);
         yax_drawrooms(viewProcessSprites, nSectnum, 0, gInterpolate);
-#ifdef __PSP__
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
         static int pspViewFrames;
         if (++pspViewFrames == 1 || (pspViewFrames % 180) == 0)
-            initprintf("PSP render: room sprites=%d sector=%d view=%d,%d,%d\n", spritesortcnt, nSectnum, cX, cY, cZ);
+            PSP_DIAG_LOG("PSP render: room sprites=%d sector=%d view=%d,%d,%d\n", spritesortcnt, nSectnum, cX, cY, cZ);
 #endif
         viewProcessSprites(cX, cY, cZ, fix16_to_int(cA), gInterpolate);
-#ifdef __PSP__
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
         if (pspViewFrames == 1 || (pspViewFrames % 180) == 0)
-            initprintf("PSP render: processed sprites=%d\n", spritesortcnt);
+            PSP_DIAG_LOG("PSP render: processed sprites=%d\n", spritesortcnt);
 #endif
         bool do_ror_hack = false;
         for (int i = 0; i < 16; i++)
@@ -4412,18 +4419,33 @@ int32_t gShowFps, gFramePeriod;
 void viewPrintFPS(void)
 {
 #ifndef EDUKE32
+# if defined(__PSP__)
+    if (!psp_perf_hud) return;
+#  if defined(PSP_DIAGNOSTIC_BUILD)
+    // U and R come from the game loop in milliseconds. P is the previous
+    // frame's CPU presentation work: software scaling plus cache writeback.
+    double renderTime = g_gameUpdateAndDrawTime - g_gameUpdateTime;
+    if (renderTime < 0.0) renderTime = 0.0;
+    char tempbuf[64];
+    int32_t x = (xdim < 640);
+    int32_t chars = Bsprintf(tempbuf, "%dfps U%.1f R%.1f P%.1f", gFrameRate,
+                             g_gameUpdateTime, renderTime, psp_present_us * 0.001);
+    printext256(windowx2-(chars<<(3-x))-2, windowy1+2, whitecol, -1, tempbuf, x);
+#  else
+    // Release keeps only a cheap FPS counter: no timing probes and no logs.
+    int32_t x = (xdim < 640);
+    char tempbuf[16];
+    int32_t chars = sprintf(tempbuf, "%d fps", gFrameRate);
+    printext256(windowx2-(chars<<(3-x))-2, windowy1+2, whitecol, -1, tempbuf, x);
+#  endif
+# else
     if (!gShowFps) return;
 
     int32_t x = (xdim < 640);
-#if 0
-    char tempbuf[16*16];
-    int32_t chars = sprintf(tempbuf, "%d fps t1 %d t2 %d t3 %d t4 %d t5 %d t6 %d t7 %d t8 %d t9 %d", gFrameRate, t1/1000, t2/1000, t3/1000, t4/1000, t5/1000, t6/1000, t7/1000, t8/1000, t9/1000);
-    t1 = t2 = t3 = t4 = t5 = t6 = t7 = t8 = t9 = 0;
-#else
     char tempbuf[16];
     int32_t chars = sprintf(tempbuf, "%d fps", gFrameRate);
-#endif
     printext256(windowx2-(chars<<(3-x))-2, windowy1+2, whitecol, -1, tempbuf, x);
+# endif
 #else
     char tempbuf[128];
     static int32_t frameCount;

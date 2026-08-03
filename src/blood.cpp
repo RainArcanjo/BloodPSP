@@ -90,7 +90,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #endif
 
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
-# define PSP_DIAG_MARK(stage) initprintf("PSP diag: %s clock=%d\n", stage, (int)totalclock)
+# define PSP_DIAG_MARK(stage) PSP_DIAG_LOG("PSP diag: %s clock=%d\n", stage, (int)totalclock)
 #else
 # define PSP_DIAG_MARK(stage) ((void)0)
 #endif
@@ -133,9 +133,18 @@ char *pUserRFF = NULL;
 
 int gChokeCounter = 0;
 
-#ifdef EDUKE32
+#if defined(EDUKE32) || (defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD))
 double g_gameUpdateTime, g_gameUpdateAndDrawTime;
 double g_gameUpdateAvgTime = 0.001;
+# if defined(EDUKE32)
+#  define GAME_PERF_TICKS() timerGetFractionalTicks()
+# else
+static double pspDiagnosticMilliseconds(void)
+{
+    return getusecticks() * 0.001;
+}
+#  define GAME_PERF_TICKS() pspDiagnosticMilliseconds()
+# endif
 #endif
 
 int gSaveGameNum;
@@ -1207,7 +1216,7 @@ static void PreloadCachePSP(void)
     videoNextPage();
 
 # if defined(PSP_DIAGNOSTIC_BUILD)
-    initprintf("PSP preload: %d/%d textures, %u/%u KB\n", loaded, total, bytesLoaded >> 10, kPreloadBudget >> 10);
+    PSP_DIAG_LOG("PSP preload: %d/%d textures, %u/%u KB\n", loaded, total, bytesLoaded >> 10, kPreloadBudget >> 10);
 # endif
 }
 #endif
@@ -1304,10 +1313,10 @@ int16_t startang, startsectnum;
 
 void StartLevel(GAMEOPTIONS *gameOptions)
 {
-    initprintf("PSP level: begin %s\n", gameOptions->zLevelName);
+    PSP_DIAG_LOG("PSP level: begin %s\n", gameOptions->zLevelName);
     PSP_DIAG_MARK("level-begin");
     EndLevel();
-    initprintf("PSP level: previous state cleared\n");
+    PSP_DIAG_LOG("PSP level: previous state cleared\n");
     PSP_DIAG_MARK("level-before-input-reset");
     gInput = {};
     gStartNewGame = 0;
@@ -1340,7 +1349,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
 #if defined(__PSP__)
             // Cutscenes use Smacker, which is intentionally absent from the
             // software-renderer MVP. Continue directly into the level.
-            initprintf("PSP level: intro cutscene skipped (video disabled)\n");
+            PSP_DIAG_LOG("PSP level: intro cutscene skipped (video disabled)\n");
 #else
             levelPlayIntroScene(gGameOptions.nEpisode);
 #endif
@@ -1390,7 +1399,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     bVanilla = gDemo.at1 && gDemo.m_bLegacy;
     PSP_DIAG_MARK("level-before-loading-screen");
     drawLoadingScreen();
-    initprintf("PSP level: loading screen drawn\n");
+    PSP_DIAG_LOG("PSP level: loading screen drawn\n");
 #if defined(__PSP__)
     viewLoadingScreenUpdate("Preparing level...", 5);
 #endif
@@ -1406,7 +1415,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         gQuitGame = true;
         return;
     }
-    initprintf("PSP level: map loaded\n");
+    PSP_DIAG_LOG("PSP level: map loaded\n");
     PSP_DIAG_MARK("map-loaded");
 #if defined(__PSP__)
     viewLoadingScreenUpdate("Building level data...", 35);
@@ -1474,7 +1483,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         }
         #endif
     }
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     auto pspLogSpritePools = [](const char *stage)
     {
         int active = 0, usedX = 0;
@@ -1482,7 +1491,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
             active += sprite[i].statnum < kMaxStatus;
         for (int i = 1; i < kMaxXSprites; ++i)
             usedX += xsprite[i].reference >= 0;
-        initprintf("PSP level: %s: active=%d, Numsprites=%d, XSprites=%d/%d\n",
+        PSP_DIAG_LOG("PSP level: %s: active=%d, Numsprites=%d, XSprites=%d/%d\n",
                    stage, active, Numsprites, usedX, kMaxXSprites - 1);
     };
     pspLogSpritePools("before world init");
@@ -1492,19 +1501,19 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     videoNextPage();
 #endif
     InitSectorFX();
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     pspLogSpritePools("after InitSectorFX");
 #endif
     warpInit();
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     pspLogSpritePools("after warpInit");
 #endif
     actInit(false);
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     pspLogSpritePools("after actInit");
 #endif
     evInit();
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     pspLogSpritePools("after evInit");
 
     // The JFBuild loader leaves the unused slots marked kStatFree, but an
@@ -1526,15 +1535,15 @@ void StartLevel(GAMEOPTIONS *gameOptions)
                 if (sprite[i].statnum == kMaxStatus || sprite[i].statnum == kStatNothing)
                     InsertSpriteStat(i, kMaxStatus);
             }
-            initprintf("PSP map: rebuilt free BUILD sprite list (%d slots)\n", freeSprites);
+            PSP_DIAG_LOG("PSP map: rebuilt free BUILD sprite list (%d slots)\n", freeSprites);
         }
         else
         {
-            initprintf("PSP map: free BUILD sprite list empty with no recoverable slots\n");
+            PSP_DIAG_LOG("PSP map: free BUILD sprite list empty with no recoverable slots\n");
         }
     }
 #endif
-    initprintf("PSP level: world systems initialized\n");
+    PSP_DIAG_LOG("PSP level: world systems initialized\n");
     PSP_DIAG_MARK("world-initialized");
 #if defined(__PSP__)
     viewLoadingScreenUpdate("Creating player...", 55);
@@ -1556,10 +1565,10 @@ void StartLevel(GAMEOPTIONS *gameOptions)
             playerResetScores(i);
         playerStart(i, 1);
     }
-    initprintf("PSP level: player initialized\n");
+    PSP_DIAG_LOG("PSP level: player initialized\n");
     PSP_DIAG_MARK("player-initialized");
 #if defined(__PSP__)
-    initprintf("PSP level: restoring level state\n");
+    PSP_DIAG_LOG("PSP level: restoring level state\n");
 #endif
     if (gameOptions->uGameFlags&1)
     {
@@ -1587,17 +1596,17 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     }
     gameOptions->uGameFlags &= ~3;
 #if defined(__PSP__)
-    initprintf("PSP level: setting DAC\n");
+    PSP_DIAG_LOG("PSP level: setting DAC\n");
 #endif
     scrSetDac();
     PSP_DIAG_MARK("dac-set");
 #if defined(__PSP__)
-    initprintf("PSP level: DAC set; progressive texture preload\n");
+    PSP_DIAG_LOG("PSP level: DAC set; progressive texture preload\n");
     PreloadCachePSP();
 #else
     PreloadCache();
 #endif
-    initprintf("PSP level: cache preloaded\n");
+    PSP_DIAG_LOG("PSP level: cache preloaded\n");
     PSP_DIAG_MARK("cache-preloaded");
 #ifdef __AMIGA__
     if (gDemo.at1)
@@ -1617,7 +1626,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     if (!bVanilla && !gMe->packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
         sfxSetReverb(0);
     ambInit();
-    initprintf("PSP level: post-load systems initialized\n");
+    PSP_DIAG_LOG("PSP level: post-load systems initialized\n");
     PSP_DIAG_MARK("post-load-systems");
     netResetState();
     gCacheMiss = 0;
@@ -2482,6 +2491,7 @@ int app_main(int argc, char const * const * argv)
 #endif
 #endif
 
+#if !defined(__PSP__) || defined(PSP_DIAGNOSTIC_BUILD)
 #ifdef __APPLE__
     if (!g_useCwd)
     {
@@ -2497,6 +2507,7 @@ int app_main(int argc, char const * const * argv)
     else
 #endif
     OSD_SetLogFile(APPBASENAME ".log");
+#endif
 
     OSD_SetFunctions(NULL,
                      NULL,
@@ -2552,7 +2563,7 @@ int app_main(int argc, char const * const * argv)
     // platform.
     if (MAXCACHE1DSIZE > 8 * 1024 * 1024)
         MAXCACHE1DSIZE = 8 * 1024 * 1024;
-    initprintf("PSP cache limit: %d bytes\n", MAXCACHE1DSIZE);
+    PSP_DIAG_LOG("PSP cache limit: %d bytes\n", MAXCACHE1DSIZE);
 #endif
     if (bCustomName)
         strcpy(szPlayerName, gPName);
@@ -2735,20 +2746,20 @@ int app_main(int argc, char const * const * argv)
     viewResizeView(gViewSize);
     initprintf("Initializing sound system\n");
     sndInit();
-    initprintf("PSP startup: sndInit complete\n");
+    PSP_DIAG_LOG("PSP startup: sndInit complete\n");
     sfxInit();
-    initprintf("PSP startup: sfxInit complete\n");
+    PSP_DIAG_LOG("PSP startup: sfxInit complete\n");
     gChoke.sub_83ff0(518, sub_84230);
-    initprintf("PSP startup: choke QAV complete\n");
+    PSP_DIAG_LOG("PSP startup: choke QAV complete\n");
     if (bAddUserMap)
     {
         levelAddUserMap(gUserMapFilename);
         gStartNewGame = 1;
     }
     SetupMenus();
-    initprintf("PSP startup: menus complete\n");
+    PSP_DIAG_LOG("PSP startup: menus complete\n");
     videoSetViewableArea(0, 0, xdim - 1, ydim - 1);
-    initprintf("PSP startup: viewable area complete\n");
+    PSP_DIAG_LOG("PSP startup: viewable area complete\n");
 
 #ifdef EDUKE32
     OSD_Exec("autoexec.cfg");
@@ -2757,29 +2768,29 @@ int app_main(int argc, char const * const * argv)
 #if defined(__PSP__)
     // The PSP MVP has no Smacker/video backend yet.  Do not enter the DOS
     // logo sequence, which attempts to play an opening video before menus.
-    initprintf("PSP startup: opening logos skipped (video disabled)\n");
+    PSP_DIAG_LOG("PSP startup: opening logos skipped (video disabled)\n");
 #else
     if (!bQuickStart)
         credLogosDos();
 #endif
-    initprintf("PSP startup: logos complete\n");
+    PSP_DIAG_LOG("PSP startup: logos complete\n");
     scrSetDac();
-    initprintf("PSP startup: DAC complete\n");
+    PSP_DIAG_LOG("PSP startup: DAC complete\n");
 RESTART:
     netResetState();
-    initprintf("PSP startup: network state reset\n");
+    PSP_DIAG_LOG("PSP startup: network state reset\n");
     gViewIndex = myconnectindex;
     gMe = gView = &gPlayer[myconnectindex];
     netBroadcastPlayerInfo(myconnectindex);
-    initprintf("PSP startup: player info broadcast\n");
+    PSP_DIAG_LOG("PSP startup: player info broadcast\n");
 #ifdef __AMIGA__
     // TODO send this upstream!
     if (numplayers > 1)
 #endif
     initprintf("Waiting for network players!\n");
     netWaitForEveryone(0);
-    initprintf("PSP level: network sync complete\n");
-    initprintf("PSP startup: network wait complete\n");
+    PSP_DIAG_LOG("PSP level: network sync complete\n");
+    PSP_DIAG_LOG("PSP startup: network wait complete\n");
     if (gRestartGame)
     {
         // Network error
@@ -2790,7 +2801,7 @@ RESTART:
         goto RESTART;
     }
     UpdateNetworkMenus();
-    initprintf("PSP startup: network menus complete\n");
+    PSP_DIAG_LOG("PSP startup: network menus complete\n");
     if (!gDemo.at0 && gDemo.nDemosFound > 0 && gGameOptions.nGameType == 0 && !bNoDemo)
         gDemo.SetupPlayback(NULL);
     viewSetCrosshairColor(CrosshairColors.r, CrosshairColors.g, CrosshairColors.b);
@@ -2812,7 +2823,7 @@ RESTART:
         if (gGameOptions.nGameType > 0)
             gGameMenuMgr.Push(&menuNetStart, 1);
     }
-    initprintf("PSP startup: main menu ready\n");
+    PSP_DIAG_LOG("PSP startup: main menu ready\n");
     ready2send = 1;
     static bool frameJustDrawn;
     while (!gQuitGame)
@@ -2821,8 +2832,8 @@ RESTART:
         if (gGameStarted)
         {//t5 = 0; // faketimerhandler
             char gameUpdate = false;//tstart = getusecticks();
-#ifdef EDUKE32
-            double const gameUpdateStartTime = timerGetFractionalTicks();
+#if defined(EDUKE32) || (defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD))
+            double const gameUpdateStartTime = GAME_PERF_TICKS();
 #endif
             while (gPredictTail < gNetFifoHead[myconnectindex] && !gPaused)
             {
@@ -2860,10 +2871,10 @@ RESTART:
                     gameUpdate = true;
                 } while (0);//t2 = getusecticks()-tstart;
             }
-#ifdef EDUKE32
+#if defined(EDUKE32) || (defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD))
             if (gameUpdate)
             {
-                g_gameUpdateTime = timerGetFractionalTicks() - gameUpdateStartTime;
+                g_gameUpdateTime = GAME_PERF_TICKS() - gameUpdateStartTime;
                 if (g_gameUpdateAvgTime < 0.f)
                     g_gameUpdateAvgTime = g_gameUpdateTime;
                 g_gameUpdateAvgTime = ((GAMEUPDATEAVGTIMENUMSAMPLES-1.f)*g_gameUpdateAvgTime+g_gameUpdateTime)/((float) GAMEUPDATEAVGTIMENUMSAMPLES);
@@ -2878,8 +2889,8 @@ RESTART:
                 if (bDraw)
                 {//tstart = getusecticks();
                     viewDrawScreen();//t3 = getusecticks()-tstart;
-#ifdef EDUKE32
-                    g_gameUpdateAndDrawTime = timerGetFractionalTicks() - gameUpdateStartTime;
+#if defined(EDUKE32) || (defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD))
+                    g_gameUpdateAndDrawTime = GAME_PERF_TICKS() - gameUpdateStartTime;
 #endif
                 }
             }
@@ -2957,7 +2968,7 @@ RESTART:
         if (gStartNewGame)
         {
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
-            initprintf("PSP transition: dispatching StartLevel\n");
+            PSP_DIAG_LOG("PSP transition: dispatching StartLevel\n");
 #endif
             StartLevel(&gGameOptions);
         }

@@ -47,6 +47,15 @@
 #define initprintf buildprintf
 #define ERRprintf buildprintf
 
+// Port instrumentation is completely absent from the release binary. Keep
+// the shared logging API intact for normal error handling, but make PSP-only
+// checkpoints opt-in so their arguments and format strings are not emitted.
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+# define PSP_DIAG_LOG(...) initprintf(__VA_ARGS__)
+#else
+# define PSP_DIAG_LOG(...) ((void)0)
+#endif
+
 typedef struct
 {
 	int32_t x, y;

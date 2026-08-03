@@ -274,8 +274,11 @@ void CGameMenuMgr::Process(void)
         static uint32_t oldpad = 0;
         SceCtrlData pad;
         sceCtrlPeekBufferPositive(&pad, 1);
-        if (PSP_SINGLE_CLICK(PSP_CTRL_CROSS) || PSP_SINGLE_CLICK(PSP_CTRL_START)) {
+        if (PSP_SINGLE_CLICK(PSP_CTRL_CROSS)) {
             event.at0 = kMenuEventEnter;
+            event.at2 = 1;
+        } else if (PSP_SINGLE_CLICK(PSP_CTRL_START)) {
+            event.at0 = kMenuEventEscape;
             event.at2 = 1;
         } else if (PSP_SINGLE_CLICK(PSP_CTRL_DOWN)) {
             event.at0 = kMenuEventDown;

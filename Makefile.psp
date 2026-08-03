@@ -4,16 +4,20 @@ OBJS := platform/psp_bootstrap.o
 # Kept here so that platform objects and the future game target use the same
 # host-compiler compatibility mode. GCC 15 defaults to C23 on this host while
 # the historical JFBuild code expects GNU C17 semantics.
-CFLAGS += -std=gnu17 -DSMACKER_DISABLE -DPSP_PERFORMANCE_BUILD -I jfbuild-vita/include -I jfbuild-vita/src
-CXXFLAGS += -std=gnu++14 -fpermissive -DSMACKER_DISABLE -DPSP_PERFORMANCE_BUILD
+PSP_BUILD_VARIANT ?= release
 
-# Kept opt-in: this produces a separate diagnostic EBOOT with a few persistent
-# checkpoints around level loading and the first simulation tick. It does not
-# re-enable the normal per-frame log used by development builds.
-ifneq ($(PSP_DIAGNOSTIC_BUILD),)
-CFLAGS += -DPSP_DIAGNOSTIC_BUILD
-CXXFLAGS += -DPSP_DIAGNOSTIC_BUILD
+ifeq ($(PSP_BUILD_VARIANT),diagnostic)
+PSP_BUILD_DEFINES := -DPSP_DIAGNOSTIC_BUILD
+PSP_PBP_TITLE := JFBlood PSP (Diagnostic)
+else ifeq ($(PSP_BUILD_VARIANT),release)
+PSP_BUILD_DEFINES := -DPSP_RELEASE_BUILD
+PSP_PBP_TITLE := JFBlood PSP (MVP)
+else
+$(error PSP_BUILD_VARIANT must be release or diagnostic)
 endif
+
+CFLAGS += -std=gnu17 -DSMACKER_DISABLE $(PSP_BUILD_DEFINES) -I jfbuild-vita/include -I jfbuild-vita/src
+CXXFLAGS += -std=gnu++14 -fpermissive -DSMACKER_DISABLE $(PSP_BUILD_DEFINES)
 
 PSP_FW_VERSION := 600
 BUILD_PRX := 1
@@ -85,7 +89,20 @@ $(JFBLOOD_PRX): $(JFBLOOD_ELF)
 	psp-fixup-imports $<
 	psp-prxgen $< $@
 
-.PHONY: blood-eboot
-blood-eboot: $(JFBLOOD_PRX)
-	mksfoex "JFBlood PSP (MVP)" PARAM.SFO
+.PHONY: blood-eboot blood-eboot-release blood-eboot-diagnostic blood-eboot-build
+
+# A variant always forces a complete rebuild. This prevents a diagnostic object
+# (and its instrumentation) from being linked into the silent release EBOOT.
+blood-eboot: blood-eboot-release
+
+blood-eboot-release:
+	$(MAKE) -B -f Makefile.psp PSP_BUILD_VARIANT=release blood-eboot-build
+	cp -f EBOOT.PBP EBOOT-release.PBP
+
+blood-eboot-diagnostic:
+	$(MAKE) -B -f Makefile.psp PSP_BUILD_VARIANT=diagnostic blood-eboot-build
+	cp -f EBOOT.PBP EBOOT-diagnostic.PBP
+
+blood-eboot-build: $(JFBLOOD_PRX)
+	mksfoex "$(PSP_PBP_TITLE)" PARAM.SFO
 	pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL $(JFBLOOD_PRX) NULL

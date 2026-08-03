@@ -1,5 +1,5 @@
 // PSP interface layer for the JFBuild backport used by JFBlood.
-// MVP: software renderer, indexed 320x200 surface, no audio.
+// MVP: native 480x272 indexed software renderer, no audio.
 
 #include <pspkernel.h>
 #include <pspctrl.h>
@@ -22,12 +22,20 @@
 // layer.  These are the stable PC scan codes used by the Blood defaults.
 enum {
     PSP_SC_ESCAPE = 0x01,
+    PSP_SC_TAB = 0x0f,
     PSP_SC_W = 0x11,
+    PSP_SC_SEMI = 0x27,
+    PSP_SC_QUOTE = 0x28,
     PSP_SC_S = 0x1f,
     PSP_SC_E = 0x12,
-    PSP_SC_RETURN = 0x1c,
     PSP_SC_LEFTCTRL = 0x1d,
     PSP_SC_LEFTALT = 0x38,
+    PSP_SC_SPACE = 0x39,
+    PSP_SC_CAPSLOCK = 0x3a,
+    PSP_SC_X = 0x2d,
+
+
+    PSP_SC_RIGHTCTRL = 0x9d,
     PSP_SC_LEFTSHIFT = 0x2a,
     PSP_SC_UP = 0xc8,
     PSP_SC_DOWN = 0xd0,
@@ -62,15 +70,18 @@ char joynumaxes = 0, joynumbuttons = 0;
 
 // Keep the indexed game surface out of the fragmented runtime heap.  The
 // JFBuild cache is allocated before video setup and is intentionally large.
-static uint8_t framebuffer_storage[320 * 200];
+static uint8_t framebuffer_storage[480 * 272];
 static uint8_t *framebuffer;
 static uint16_t palette565[256];
 static uint16_t display_buffers[2][512 * 272] __attribute__((aligned(64)));
 static int drawbuffer;
 static FILE *psp_log;
 static int psp_log_enabled = 1;
-static uint16_t psp_scale_x[480];
-static uint16_t psp_scale_y[272];
+int psp_perf_hud;
+#if defined(PSP_DIAGNOSTIC_BUILD)
+unsigned int psp_present_us;
+#endif
+
 static uint64_t timerlastsample;
 static int timerfreq, timerticspersec;
 static void (*usertimercallback)(void);
@@ -79,9 +90,13 @@ static void (*mousepresscallback)(int, int);
 static void (*joypresscallback)(int, int);
 
 
+#define PSP_FB_WIDTH 480
 #define PSP_FB_STRIDE 512
 #define PSP_FB_HEIGHT 272
 #define PSP_FB_SIZE (PSP_FB_STRIDE * PSP_FB_HEIGHT * 2)
+
+static uint16_t psp_scale_x[PSP_FB_WIDTH];
+static uint16_t psp_scale_y[PSP_FB_HEIGHT];
 
 static uint64_t psp_ticks(void)
 {
@@ -110,18 +125,24 @@ static void psp_read_options(void)
             sscanf(line, "PSPLog=%d", &enabled) == 1)
         {
             psp_log_enabled = enabled != 0;
-            break;
         }
+#if defined(PSP_DIAGNOSTIC_BUILD)
+        else if (sscanf(line, " PSPPerfHUD = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPPerfHUD=%d", &enabled) == 1)
+        {
+            psp_perf_hud = enabled != 0;
+        }
+#endif
     }
     fclose(cfg);
 }
-
 int initsystem(void)
 {
     // The game data and configuration belong beside EBOOT.PBP.  This avoids
     // the desktop-oriented HOME/.config relocation in the shared game code.
     g_useCwd = 1;
-#ifdef PSP_PERFORMANCE_BUILD
+#if defined(PSP_RELEASE_BUILD)
+    // A release must not open, create, or update a diagnostic file.
     psp_log_enabled = 0;
 #else
     psp_read_options();
@@ -134,9 +155,9 @@ int initsystem(void)
     sceCtrlSetSamplingCycle(0);
     sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
     scePowerSetClockFrequency(333, 333, 166);
-    sceDisplaySetMode(0, 480, 272);
-    for (int i = 0; i < 480; ++i)
-        psp_scale_x[i] = (uint16_t)((i * 320) / 480);
+    sceDisplaySetMode(0, PSP_FB_WIDTH, PSP_FB_HEIGHT);
+    for (int i = 0; i < PSP_FB_WIDTH; ++i)
+        psp_scale_x[i] = (uint16_t)((i * 320) / PSP_FB_WIDTH);
     for (int i = 0; i < PSP_FB_HEIGHT; ++i)
         psp_scale_y[i] = (uint16_t)((i * 200) / PSP_FB_HEIGHT);
     drawbuffer = 0;
@@ -172,7 +193,7 @@ void uninitsystem(void)
 
 void initputs(const char *str)
 {
-#ifdef PSP_PERFORMANCE_BUILD
+#if defined(PSP_RELEASE_BUILD)
     (void)str;
 #else
     fputs(str, stderr);
@@ -181,7 +202,7 @@ void initputs(const char *str)
 }
 void debugprintf(const char *fmt, ...)
 {
-#ifdef PSP_PERFORMANCE_BUILD
+#if defined(PSP_RELEASE_BUILD)
     (void)fmt;
 #else
     va_list va;
@@ -269,17 +290,19 @@ void getvalidmodes(void)
     if (modeschecked) return;
     validmodecnt = 0;
     ADDMODE(320, 200, 8, 1);
+    ADDMODE(PSP_FB_WIDTH, PSP_FB_HEIGHT, 8, 1);
     modeschecked = 1;
 }
 int checkvideomode(int *x, int *y, int c, int fs, int UNUSED(forced))
 {
     getvalidmodes();
-    // JFBuild's fallback probes a windowed mode.  PSP only has the display
-    // framebuffer, so accept either request and expose the same 320x200
-    // indexed surface in both cases.
+    // PSP always presents at 480x272, but classic BUILD can render either
+    // directly at that size or at 320x200 and use the fast indexed scaler.
+    (void)fs;
     if (c != 8) return -1;
-    *x = 320; *y = 200;
-    return 0;
+    if ((*x == 320 && *y == 200) || (*x == PSP_FB_WIDTH && *y == PSP_FB_HEIGHT))
+        return 0;
+    return -1;
 }
 int setvideomode(int x, int y, int c, int fs)
 {
@@ -299,26 +322,47 @@ void enddrawing(void) {}
 void showframe(void)
 {
     uint16_t *dst;
-    int x, y;
+#if defined(PSP_DIAGNOSTIC_BUILD)
+    uint64_t const presentStart = psp_ticks();
+#endif
+
     if (offscreenrendering || !framebuffer) return;
     drawbuffer ^= 1;
     dst = display_buffers[drawbuffer];
-    // The renderer remains 320x200 (fast and faithful to classic BUILD),
-    // while the presentation pass fills the 480x272 LCD.  Nearest-neighbour
-    // scaling keeps the original indexed pixels crisp and has no extra cache
-    // allocation.
-    for (y = 0; y < PSP_FB_HEIGHT; ++y)
+
+    if (xres == PSP_FB_WIDTH && yres == PSP_FB_HEIGHT)
     {
-        int sy = psp_scale_y[y];
-        uint8_t *src = framebuffer + sy * xres;
-        uint16_t *row = dst + y * PSP_FB_STRIDE;
-        for (x = 0; x < 480; ++x)
-            row[x] = palette565[src[psp_scale_x[x]]];
+        // Native PSP mode: indexed renderer at 480x272, then RGB565 conversion.
+        for (int y = 0; y < PSP_FB_HEIGHT; ++y)
+        {
+            const uint8_t *src = framebuffer + y * PSP_FB_WIDTH;
+            uint16_t *row = dst + y * PSP_FB_STRIDE;
+            for (int x = 0; x < PSP_FB_WIDTH; ++x)
+                row[x] = palette565[src[x]];
+        }
     }
-    sceDisplayWaitVblankStart();
+    else
+    {
+        // Performance mode: classic 320x200 renderer scaled to the PSP LCD.
+        for (int y = 0; y < PSP_FB_HEIGHT; ++y)
+        {
+            const uint8_t *src = framebuffer + psp_scale_y[y] * 320;
+            uint16_t *row = dst + y * PSP_FB_STRIDE;
+            for (int x = 0; x < PSP_FB_WIDTH; ++x)
+                row[x] = palette565[src[psp_scale_x[x]]];
+        }
+    }
+
     sceKernelDcacheWritebackRange(dst, PSP_FB_SIZE);
+#if defined(PSP_DIAGNOSTIC_BUILD)
+    // This is CPU presentation work only: scaling and cache writeback. VBlank
+    // pacing is intentionally excluded so the HUD identifies real hotspots.
+    psp_present_us = (unsigned int)(psp_ticks() - presentStart);
+#endif
+    sceDisplayWaitVblankStart();
     sceDisplaySetFrameBuf(dst, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 }
+
 int setpalette(int UNUSED(start), int UNUSED(num), unsigned char * UNUSED(dapal))
 {
     int i;
@@ -355,8 +399,20 @@ static void psp_set_key(int scan, int down)
         keypresscallback(scan, down);
 }
 
+static uint32_t psp_filter_joystick_buttons(uint32_t buttons)
+{
+    // PSP face/trigger inputs use the keyboard path below. The JFMact
+    // joystick table is retained for analogue axes only: old cfg files have
+    // incompatible button entries and would otherwise inject two actions.
+    (void)buttons;
+    return 0;
+}
+
 static void psp_apply_keyboard_controls(uint32_t buttons)
 {
+    int const l1 = !!(buttons & PSP_CTRL_LTRIGGER);
+    int const l1Square = l1 && !!(buttons & PSP_CTRL_SQUARE);
+    int const l1Triangle = l1 && !!(buttons & PSP_CTRL_TRIANGLE);
     int up = !!(buttons & PSP_CTRL_UP);
     int down = !!(buttons & PSP_CTRL_DOWN);
     int left = !!(buttons & PSP_CTRL_LEFT);
@@ -369,11 +425,19 @@ static void psp_apply_keyboard_controls(uint32_t buttons)
     psp_set_key(PSP_SC_LEFT, left);
     psp_set_key(PSP_SC_RIGHT, right);
 
-    psp_set_key(PSP_SC_LEFTCTRL, !!(buttons & PSP_CTRL_CROSS));
-    psp_set_key(PSP_SC_RETURN, !!(buttons & PSP_CTRL_CROSS));
-    psp_set_key(PSP_SC_LEFTALT, !!(buttons & PSP_CTRL_CIRCLE));
-    psp_set_key(PSP_SC_LEFTSHIFT, !!(buttons & PSP_CTRL_SQUARE));
-    psp_set_key(PSP_SC_E, !!(buttons & PSP_CTRL_TRIANGLE));
+    // Cross jump, Circle crouch, Square use, Triangle next weapon,
+    // L+Triangle previous weapon, L/R secondary/primary fire, Select map,
+    // and Start menu.
+    psp_set_key(PSP_SC_SPACE, !!(buttons & PSP_CTRL_CROSS));
+
+    psp_set_key(PSP_SC_LEFTCTRL, !!(buttons & PSP_CTRL_CIRCLE));
+    psp_set_key(PSP_SC_E, !!(buttons & PSP_CTRL_SQUARE) && !l1Square);
+    psp_set_key(PSP_SC_SEMI, l1Triangle);
+    psp_set_key(PSP_SC_X, l1 && !l1Square && !l1Triangle);
+    psp_set_key(PSP_SC_RIGHTCTRL, !!(buttons & PSP_CTRL_RTRIGGER));
+    psp_set_key(PSP_SC_TAB, !!(buttons & PSP_CTRL_SELECT));
+    psp_set_key(PSP_SC_CAPSLOCK, l1Square);
+    psp_set_key(PSP_SC_QUOTE, !!(buttons & PSP_CTRL_TRIANGLE) && !l1Triangle);
     psp_set_key(PSP_SC_ESCAPE, !!(buttons & PSP_CTRL_START));
 }
 
@@ -382,23 +446,38 @@ int handleevents(void)
     SceCtrlData pad;
     int buttons, changed, i;
     sceCtrlReadBufferPositive(&pad, 1);
-    buttons = psp_buttons(pad.Buttons);
+    buttons = psp_buttons(psp_filter_joystick_buttons(pad.Buttons));
     changed = buttons ^ joyb;
+#if defined(PSP_DIAGNOSTIC_BUILD)
     if (changed)
         debugprintf("PSP input: raw=%08x mapped=%08x changed=%08x\n",
                     (unsigned int)pad.Buttons, (unsigned int)buttons, (unsigned int)changed);
+#endif
     for (i = 0; i < 16; ++i)
         if ((changed & (1 << i)) && joypresscallback) joypresscallback(i, !!(buttons & (1 << i)));
     psp_apply_keyboard_controls(pad.Buttons);
     joyb = buttons;
-    joyaxis[0] = ((int)pad.Lx - 128) * 256;
+    // The PSP's single analogue nub controls turning. Keep movement at the
+    // expected full range while reducing horizontal turn sensitivity by 25%.
+    joyaxis[0] = ((int)pad.Lx - 128) * 192;
     joyaxis[1] = ((int)pad.Ly - 128) * 256;
     // Do not consume HOME: firmware/PPSSPP owns it for the XMB system menu.
     sampletimer();
     return quitevent;
 }
 
-int wm_msgbox(const char *UNUSED(name), const char *fmt, ...) { va_list va; va_start(va, fmt); vfprintf(stderr, fmt, va); va_end(va); return 0; }
+int wm_msgbox(const char *UNUSED(name), const char *fmt, ...)
+{
+#if defined(PSP_RELEASE_BUILD)
+    (void)fmt;
+#else
+    va_list va;
+    va_start(va, fmt);
+    vfprintf(stderr, fmt, va);
+    va_end(va);
+#endif
+    return 0;
+}
 int wm_ynbox(const char *UNUSED(name), const char *UNUSED(fmt), ...) { return 1; }
 int wm_filechooser(const char *UNUSED(initialdir), const char *UNUSED(initialfile), const char *UNUSED(type), int UNUSED(foropen), char **UNUSED(choice)) { return -1; }
 int wm_idle(void *UNUSED(data)) { return 0; }

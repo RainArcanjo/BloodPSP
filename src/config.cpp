@@ -58,6 +58,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define __SETUP__   // JBF 20031211
 #include "_functio.h"
 
+#if defined(__PSP__)
+extern "C" int psp_perf_hud;
+#endif
+
 #ifdef EDUKE32
 hashtable_t h_gamefuncs    = { NUMGAMEFUNCTIONS<<1, NULL };
 #endif
@@ -1008,6 +1012,9 @@ int CONFIG_ReadSetup(void)
     //SCRIPT_GetString(scripthandle, "Options", "AdultPassword", gzAdultPassword);
     SCRIPT_GetNumber(scripthandle, "Options", "Doppler", &gStereo);
     SCRIPT_GetNumber(scripthandle, "Options", "ShowWeapon", &gShowWeapon);
+#if defined(__PSP__)
+    SCRIPT_GetNumber(scripthandle, "Options", "PSPPerfHUD", &psp_perf_hud);
+#endif
 
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "FXDevice",&FXDevice);
     SCRIPT_GetNumber(scripthandle, "Sound Setup", "MusicDevice",&MusicDevice);
@@ -1326,6 +1333,9 @@ void CONFIG_WriteSetup(uint32_t flags)
     //SCRIPT_PutString(scripthandle, "Options", "AdultPassword", gzAdultPassword);
     SCRIPT_PutNumber(scripthandle, "Options", "Doppler", gStereo, false, false);
     SCRIPT_PutNumber(scripthandle, "Options", "ShowWeapon", gShowWeapon, false, false);
+#if defined(__PSP__)
+    SCRIPT_PutNumber(scripthandle, "Options", "PSPPerfHUD", psp_perf_hud, false, false);
+#endif
 
     SCRIPT_PutNumber(scripthandle, "Sound Setup", "FXDevice", FXDevice, false, false);
     SCRIPT_PutNumber(scripthandle, "Sound Setup", "MusicDevice", MusicDevice, false, false);

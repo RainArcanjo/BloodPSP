@@ -429,14 +429,14 @@ unsigned short dbInsertXSprite(int nSprite)
                 InsertFree(nextXSprite, i);
         nXSprite = nextXSprite[0];
 #if defined(__PSP__)
-        initprintf("PSP map: rebuilt XSprite free list on demand (head=%d)\n", nXSprite);
+        PSP_DIAG_LOG("PSP map: rebuilt XSprite free list on demand (head=%d)\n", nXSprite);
 #endif
     }
     nextXSprite[0] = nextXSprite[nXSprite];
     if (nXSprite == 0)
     {
 #if defined(__PSP__)
-        initprintf("PSP map: XSprite pool exhausted (sprite=%d, limit=%d, map sprites=%d)\n", nSprite, kMaxXSprites, Numsprites);
+        PSP_DIAG_LOG("PSP map: XSprite pool exhausted (sprite=%d, limit=%d, map sprites=%d)\n", nSprite, kMaxXSprites, Numsprites);
 #endif
         ThrowError("Out of free XSprites");
     }
@@ -1347,12 +1347,12 @@ int dbLoadMap(const char *pPath, int *pX, int *pY, int *pZ, short *pAngle, short
 
     if (pCRC)
         *pCRC = nCRC;
-#if defined(__PSP__)
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     {
         int usedXSprites = 0;
         for (int i = 1; i < kMaxXSprites; ++i)
             usedXSprites += xsprite[i].reference >= 0;
-        initprintf("PSP map: header sprites=%d, loaded sprites=%d, XSprites=%d/%d\n",
+        PSP_DIAG_LOG("PSP map: header sprites=%d, loaded sprites=%d, XSprites=%d/%d\n",
                    mapHeader.at23, Numsprites, usedXSprites, kMaxXSprites - 1);
     }
 #endif

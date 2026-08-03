@@ -1308,20 +1308,30 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     PSP_DIAG_MARK("level-begin");
     EndLevel();
     initprintf("PSP level: previous state cleared\n");
+    PSP_DIAG_MARK("level-before-input-reset");
     gInput = {};
     gStartNewGame = 0;
     ready2send = 0;
+    PSP_DIAG_MARK("level-input-reset");
 #ifndef __AMIGA__
     gMusicPrevLoadedEpisode = gGameOptions.nEpisode;
     gMusicPrevLoadedLevel = gGameOptions.nLevel;
 #endif
     if (gDemo.at0 && gGameStarted)
         gDemo.Close();
+    PSP_DIAG_MARK("level-before-network-wait");
     netWaitForEveryone(0);
+    PSP_DIAG_MARK("level-network-wait-complete");
+    PSP_DIAG_MARK("level-before-options");
     if (gGameOptions.nGameType == 0)
     {
+        PSP_DIAG_MARK("level-singleplayer-options");
         if (!(gGameOptions.uGameFlags&1))
+        {
+            PSP_DIAG_MARK("level-before-setup-options");
             levelSetupOptions(gGameOptions.nEpisode, gGameOptions.nLevel);
+            PSP_DIAG_MARK("level-setup-options-complete");
+        }
         if (gEpisodeInfo[gGameOptions.nEpisode].cutALevel == gGameOptions.nLevel
             && gEpisodeInfo[gGameOptions.nEpisode].cutsceneASmkPath[0])
             gGameOptions.uGameFlags |= 4;
@@ -1368,6 +1378,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         gView = gMe;
         gViewIndex = myconnectindex;
     }
+    PSP_DIAG_MARK("level-options-ready");
     if (gameOptions->uGameFlags&1)
     {
         for (int i = connecthead; i >= 0; i = connectpoint2[i])
@@ -1377,6 +1388,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         }
     }
     bVanilla = gDemo.at1 && gDemo.m_bLegacy;
+    PSP_DIAG_MARK("level-before-loading-screen");
     drawLoadingScreen();
     initprintf("PSP level: loading screen drawn\n");
 #if defined(__PSP__)
@@ -2943,7 +2955,12 @@ RESTART:
         //	gQuitGame = 1;
         //}
         if (gStartNewGame)
+        {
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+            initprintf("PSP transition: dispatching StartLevel\n");
+#endif
             StartLevel(&gGameOptions);
+        }
     }
     ready2send = 0;
     if (gDemo.at0)

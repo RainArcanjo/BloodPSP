@@ -763,7 +763,10 @@ unsigned int dbReadMapCRC(const char *pPath)
     {
         ThrowError("Map file is wrong version");
     }
-    unsigned int nCRC = *(unsigned int*)(pData+nSize-4);
+    // Resource payloads are byte-addressed. The final CRC is not guaranteed
+    // to be naturally aligned, and a raw MIPS lw traps on Allegrex when it is not.
+    unsigned int nCRC;
+    memcpy(&nCRC, pData + nSize - sizeof(nCRC), sizeof(nCRC));
     gSysRes.Unlock(pNode);
     return nCRC;
 }

@@ -1823,17 +1823,33 @@ extern bool gStartNewGame;
 
 void ShowDifficulties()
 {
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: opening difficulty menu\n");
+#endif
     gGameMenuMgr.Push(&menuDifficulty, 3);
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: difficulty menu opened\n");
+#endif
 }
 
 void SetDifficultyAndStart(CGameMenuItemChain *pItem)
 {
-    gGameOptions.nDifficulty = pItem->at30;
-    gSkill = pItem->at30;
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: difficulty callback entered\n");
+#endif
+    int const difficulty = pItem->at30;
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: difficulty item read (%d)\n", difficulty);
+#endif
+    gGameOptions.nDifficulty = difficulty;
+    gSkill = difficulty;
     gGameOptions.nLevel = 0;
     if (gDemo.at1)
         gDemo.StopPlayback();
     gStartNewGame = true;
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: difficulty selected (%d)\n", gGameOptions.nDifficulty);
+#endif
     gCheatMgr.ResetCheats();
     if (Bstrlen(gGameOptions.szUserMap))
     {
@@ -1843,6 +1859,9 @@ void SetDifficultyAndStart(CGameMenuItemChain *pItem)
         viewResizeView(gViewSize);
     }
     gGameMenuMgr.Deactivate();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: menu deactivated\n");
+#endif
 }
 
 void SetVideoModeOld(CGameMenuItemChain *pItem)

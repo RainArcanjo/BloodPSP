@@ -7,6 +7,14 @@ OBJS := platform/psp_bootstrap.o
 CFLAGS += -std=gnu17 -DSMACKER_DISABLE -DPSP_PERFORMANCE_BUILD -I jfbuild-vita/include -I jfbuild-vita/src
 CXXFLAGS += -std=gnu++14 -fpermissive -DSMACKER_DISABLE -DPSP_PERFORMANCE_BUILD
 
+# Kept opt-in: this produces a separate diagnostic EBOOT with a few persistent
+# checkpoints around level loading and the first simulation tick. It does not
+# re-enable the normal per-frame log used by development builds.
+ifneq ($(PSP_DIAGNOSTIC_BUILD),)
+CFLAGS += -DPSP_DIAGNOSTIC_BUILD
+CXXFLAGS += -DPSP_DIAGNOSTIC_BUILD
+endif
+
 PSP_FW_VERSION := 600
 BUILD_PRX := 1
 EXTRA_TARGETS := EBOOT.PBP
@@ -71,7 +79,7 @@ enginelib:
 	$(MAKE) -B -C $(EROOT) enginelib PLATFORM=PSP RENDERTYPE=PSP CC=$(CC) CXX=$(CXX) AR=$(AR) RANLIB=$(RANLIB) CFLAGS="-std=gnu17 -DENGINE_19960925" USE_POLYMOST=0 USE_OPENGL=0 USE_ASM=0 RELEASE=1
 
 $(JFBLOOD_ELF): blood-objects $(JFBLOOD_ENGINE) $(JFBLOOD_OBJS)
-	$(CXX) $(CXXFLAGS) -specs=$(PSPSDK)/lib/prxspecs -Wl,-q,-T$(PSPSDK)/lib/linkfile.prx -L$(PSPSDK)/lib -o $@ $(JFBLOOD_OBJS) $(JFBLOOD_ENGINE) $(AUDIOLIBROOT)/$(JFAUDIOLIB) -lm -lpspctrl -lpspdisplay -lpspge -lpsprtc -lpsppower -lpspsdk -lpspuser
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(JFBLOOD_OBJS) $(JFBLOOD_ENGINE) $(AUDIOLIBROOT)/$(JFAUDIOLIB) -lm -lpspctrl -lpspdisplay -lpspge -lpsprtc -lpsppower -lpspsdk -lpspuser
 
 $(JFBLOOD_PRX): $(JFBLOOD_ELF)
 	psp-fixup-imports $<

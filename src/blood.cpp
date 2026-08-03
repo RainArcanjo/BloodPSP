@@ -89,6 +89,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <vitasdk.h>
 #endif
 
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+# define PSP_DIAG_MARK(stage) initprintf("PSP diag: %s clock=%d\n", stage, (int)totalclock)
+#else
+# define PSP_DIAG_MARK(stage) ((void)0)
+#endif
+
 const char* AppProperName = APPNAME;
 const char* AppTechnicalName = APPBASENAME;
 
@@ -1139,15 +1145,88 @@ void PreloadCache(void)
 #endif
 }
 
+#if defined(__PSP__)
+// The desktop/JFBuild preload locks every texture, sound and voxel used by a
+// map. That is appropriate on Vita/desktop, but on PSP it can lock the whole
+// 8 MiB tile cache before the first frame is allowed to run. Keep a small,
+// deterministic working set instead. Remaining tiles use the normal cache.
+static void PreloadCachePSP(void)
+{
+    static const uint32_t kPreloadBudget = 3u * 1024u * 1024u;
+    char tempbuf[128];
+    uint32_t bytesLoaded = 0;
+    int processed = 0;
+    int loaded = 0;
+
+    viewLoadingScreenUpdate("Cataloguing level textures...", 0);
+    videoNextPage();
+
+    // Marks tiles needed by the map, player, weapons and sequences without
+    // loading ART pixel data or audio resources.
+    PreloadTiles();
+
+    int const total = nPrecacheCount;
+    for (int i = 0; i < kMaxTiles; ++i)
+    {
+        if (!TestBitString(gotpic, i))
+            continue;
+
+        ++processed;
+        if (waloff[i] == 0)
+        {
+            uint32_t const tileBytes = (uint32_t)max(0, (int)tilesizx[i]) * (uint32_t)max(0, (int)tilesizy[i]);
+
+            // The tile cache owns eviction, but level-start assets must not
+            // consume all of it. Lock only this initial working set.
+            if (tileBytes != 0 && tileBytes <= kPreloadBudget - bytesLoaded)
+            {
+                walock[i] = 199;
+                tileLoad((int16_t)i);
+                if (waloff[i] != 0)
+                {
+                    bytesLoaded += tileBytes;
+                    ++loaded;
+                }
+            }
+        }
+
+        // totalclock does not advance during synchronous disk I/O. Update by
+        // count so the PSP receives a visible DOS-style progress screen and a
+        // vblank between batches.
+        if ((processed & 7) == 0 || processed == total)
+        {
+            int const percent = total > 0 ? min(100, (100 * processed) / total) : 100;
+            Bsprintf(tempbuf, "Loading textures %d%% (%d/%d, %u KB)", percent, processed, total, bytesLoaded >> 10);
+            viewLoadingScreenUpdate(tempbuf, percent);
+            videoNextPage();
+        }
+    }
+
+    memset(gotpic, 0, sizeof(gotpic));
+    viewLoadingScreenUpdate("Preparing game world...", 100);
+    videoNextPage();
+
+# if defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP preload: %d/%d textures, %u/%u KB\n", loaded, total, bytesLoaded >> 10, kPreloadBudget >> 10);
+# endif
+}
+#endif
+
 void EndLevel(void)
 {
+    PSP_DIAG_MARK("endlevel-enter");
     gViewPos = VIEWPOS_0;
     gViewIndex = myconnectindex;
     gGameMessageMgr.Clear();
+    PSP_DIAG_MARK("endlevel-messages");
     sndKillAllSounds();
+    PSP_DIAG_MARK("endlevel-sound");
     sfxKillAllSounds();
+    PSP_DIAG_MARK("endlevel-sfx");
     ambKillAll();
+    PSP_DIAG_MARK("endlevel-ambient");
     seqKillAll();
+    PSP_DIAG_MARK("endlevel-complete");
 }
 
 #ifndef EDUKE32
@@ -1226,6 +1305,7 @@ int16_t startang, startsectnum;
 void StartLevel(GAMEOPTIONS *gameOptions)
 {
     initprintf("PSP level: begin %s\n", gameOptions->zLevelName);
+    PSP_DIAG_MARK("level-begin");
     EndLevel();
     initprintf("PSP level: previous state cleared\n");
     gInput = {};
@@ -1299,7 +1379,14 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     bVanilla = gDemo.at1 && gDemo.m_bLegacy;
     drawLoadingScreen();
     initprintf("PSP level: loading screen drawn\n");
+#if defined(__PSP__)
+    viewLoadingScreenUpdate("Preparing level...", 5);
+#endif
 #ifndef EDUKE32
+    videoNextPage();
+#endif
+#if defined(__PSP__)
+    viewLoadingScreenUpdate("Reading map data...", 15);
     videoNextPage();
 #endif
     if (dbLoadMap(gameOptions->zLevelName,(int*)&startpos.x,(int*)&startpos.y,(int*)&startpos.z,&startang,&startsectnum,(unsigned int*)&gameOptions->uMapCRC))
@@ -1308,6 +1395,11 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         return;
     }
     initprintf("PSP level: map loaded\n");
+    PSP_DIAG_MARK("map-loaded");
+#if defined(__PSP__)
+    viewLoadingScreenUpdate("Building level data...", 35);
+    videoNextPage();
+#endif
     char levelName[BMAX_PATH];
     G_LoadMapHack(levelName, gameOptions->zLevelName);
     wsrand(gameOptions->uMapCRC);
@@ -1383,6 +1475,10 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     };
     pspLogSpritePools("before world init");
 #endif
+#if defined(__PSP__)
+    viewLoadingScreenUpdate("Initialising world...", 45);
+    videoNextPage();
+#endif
     InitSectorFX();
 #if defined(__PSP__)
     pspLogSpritePools("after InitSectorFX");
@@ -1427,6 +1523,11 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     }
 #endif
     initprintf("PSP level: world systems initialized\n");
+    PSP_DIAG_MARK("world-initialized");
+#if defined(__PSP__)
+    viewLoadingScreenUpdate("Creating player...", 55);
+    videoNextPage();
+#endif
     for (int i = connecthead; i >= 0; i = connectpoint2[i])
     {
         if (!(gameOptions->uGameFlags&1)) // if new game
@@ -1444,6 +1545,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         playerStart(i, 1);
     }
     initprintf("PSP level: player initialized\n");
+    PSP_DIAG_MARK("player-initialized");
 #if defined(__PSP__)
     initprintf("PSP level: restoring level state\n");
 #endif
@@ -1476,18 +1578,15 @@ void StartLevel(GAMEOPTIONS *gameOptions)
     initprintf("PSP level: setting DAC\n");
 #endif
     scrSetDac();
+    PSP_DIAG_MARK("dac-set");
 #if defined(__PSP__)
-    initprintf("PSP level: DAC set; preloading cache\n");
+    initprintf("PSP level: DAC set; progressive texture preload\n");
+    PreloadCachePSP();
 #else
     PreloadCache();
 #endif
-#if defined(__PSP__)
-    // The MVP has an 8 MiB cache and no voxel renderer.  JFBuild's full
-    // preload may call exit(0) when it cannot retain every map asset; defer
-    // tile loading to the normal on-demand path instead.
-    initprintf("PSP level: full precache skipped (on-demand tiles, no voxels)\n");
-#endif
     initprintf("PSP level: cache preloaded\n");
+    PSP_DIAG_MARK("cache-preloaded");
 #ifdef __AMIGA__
     if (gDemo.at1)
     {
@@ -1507,6 +1606,7 @@ void StartLevel(GAMEOPTIONS *gameOptions)
         sfxSetReverb(0);
     ambInit();
     initprintf("PSP level: post-load systems initialized\n");
+    PSP_DIAG_MARK("post-load-systems");
     netResetState();
     gCacheMiss = 0;
     gFrame = 0;
@@ -1764,6 +1864,12 @@ bool gRestartGame = false;
 //extern int tstart, t1, t2, t3, t4, t5, t6, t7, t8, t9;
 void ProcessFrame(void)
 {//tstart = getusecticks();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    static int pspDiagFirstFrameComplete = 0;
+    const int pspDiagThisFrame = !pspDiagFirstFrameComplete;
+    if (pspDiagThisFrame)
+        PSP_DIAG_MARK("frame-enter");
+#endif
     char buffer[128];
     for (int i = connecthead; i >= 0; i = connectpoint2[i])
     {
@@ -1830,11 +1936,27 @@ void ProcessFrame(void)
         viewBackupView(i);
         playerProcess(&gPlayer[i]);
     }//t1 = getusecticks()-tstart;tstart = getusecticks();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    if (pspDiagThisFrame)
+        PSP_DIAG_MARK("frame-player");
+#endif
     trProcessBusy();
     evProcess((int)gFrameClock);
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    if (pspDiagThisFrame)
+        PSP_DIAG_MARK("frame-event");
+#endif
     seqProcess(4);
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    if (pspDiagThisFrame)
+        PSP_DIAG_MARK("frame-sequence");
+#endif
     DoSectorPanning();//t2 = getusecticks()-tstart;tstart = getusecticks();
     actProcessSprites();//t3 = getusecticks()-tstart;tstart = getusecticks();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    if (pspDiagThisFrame)
+        PSP_DIAG_MARK("frame-actors");
+#endif
     actPostProcess();
 #ifdef POLYMER
     G_RefreshLights();
@@ -1863,6 +1985,13 @@ void ProcessFrame(void)
     gLevelTime++;
     gFrame++;
     gFrameClock += 4;
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    if (pspDiagThisFrame)
+    {
+        PSP_DIAG_MARK("frame-complete");
+        pspDiagFirstFrameComplete = 1;
+    }
+#endif
     if ((gGameOptions.uGameFlags&1) != 0 && !gStartNewGame)
     {
         ready2send = 0;
@@ -2711,7 +2840,9 @@ RESTART:
                             if (i >= 0)
                                 break;
                             faketimerhandler(); // t5
+                            PSP_DIAG_MARK("loop-before-process-frame");
                             ProcessFrame();
+                            PSP_DIAG_MARK("loop-after-process-frame");
                         }
                     } while (totalclock >= gNetFifoClock && ready2send);
                     gameUpdate = true;

@@ -501,6 +501,10 @@ void sndStartWavDisk(const char *pzFile, int nVolume, int nChannel)
 
 void sndKillAllSounds(void)
 {
+#ifdef __PSP__
+    memset(Channel, 0, sizeof(Channel));
+    return;
+#endif
     for (int i = 0; i < kChannelMax; i++)
     {
         SAMPLE2D *pChannel = &Channel[i];

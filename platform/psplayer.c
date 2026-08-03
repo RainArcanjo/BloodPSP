@@ -7,6 +7,7 @@
 #include <pspge.h>
 #include <psppower.h>
 #include <psprtc.h>
+#include <pspsdk.h>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -38,6 +39,8 @@ extern int g_useCwd;
 
 PSP_MODULE_INFO("JFBlood PSP", PSP_MODULE_USER, 1, 0);
 PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER | PSP_THREAD_ATTR_VFPU);
+PSP_HEAP_SIZE_KB(-1280);
+PSP_HEAP_THRESHOLD_SIZE_KB(1280);
 
 int _buildargc = 0;
 const char **_buildargv = NULL;
@@ -62,7 +65,7 @@ char joynumaxes = 0, joynumbuttons = 0;
 static uint8_t framebuffer_storage[320 * 200];
 static uint8_t *framebuffer;
 static uint16_t palette565[256];
-static uint32_t *vram;
+static uint16_t display_buffers[2][512 * 272] __attribute__((aligned(64)));
 static int drawbuffer;
 static FILE *psp_log;
 static int psp_log_enabled = 1;
@@ -74,6 +77,7 @@ static void (*usertimercallback)(void);
 static void (*keypresscallback)(int, int);
 static void (*mousepresscallback)(int, int);
 static void (*joypresscallback)(int, int);
+
 
 #define PSP_FB_STRIDE 512
 #define PSP_FB_HEIGHT 272
@@ -135,9 +139,8 @@ int initsystem(void)
         psp_scale_x[i] = (uint16_t)((i * 320) / 480);
     for (int i = 0; i < PSP_FB_HEIGHT; ++i)
         psp_scale_y[i] = (uint16_t)((i * 200) / PSP_FB_HEIGHT);
-    vram = (uint32_t *)sceGeEdramGetAddr();
     drawbuffer = 0;
-    sceDisplaySetFrameBuf(vram, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565,
+    sceDisplaySetFrameBuf(display_buffers[drawbuffer], PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565,
                           PSP_DISPLAY_SETBUF_IMMEDIATE);
     return 0;
 }
@@ -145,6 +148,11 @@ int initsystem(void)
 int main(int argc, char *argv[])
 {
     int result;
+
+    // Match established PSP ports: do not let an IEEE-754 status flag turn
+    // into an unhandled hardware exception in the main game thread.
+    pspSdkDisableFPUExceptions();
+
     _buildargc = argc;
     _buildargv = (const char **)argv;
     if (initsystem() != 0) return 1;
@@ -292,9 +300,9 @@ void showframe(void)
 {
     uint16_t *dst;
     int x, y;
-    if (offscreenrendering || !framebuffer || !vram) return;
+    if (offscreenrendering || !framebuffer) return;
     drawbuffer ^= 1;
-    dst = (uint16_t *)((uint8_t *)vram + drawbuffer * PSP_FB_SIZE);
+    dst = display_buffers[drawbuffer];
     // The renderer remains 320x200 (fast and faithful to classic BUILD),
     // while the presentation pass fills the 480x272 LCD.  Nearest-neighbour
     // scaling keeps the original indexed pixels crisp and has no extra cache
@@ -308,6 +316,7 @@ void showframe(void)
             row[x] = palette565[src[psp_scale_x[x]]];
     }
     sceDisplayWaitVblankStart();
+    sceKernelDcacheWritebackRange(dst, PSP_FB_SIZE);
     sceDisplaySetFrameBuf(dst, PSP_FB_STRIDE, PSP_DISPLAY_PIXEL_FORMAT_565, PSP_DISPLAY_SETBUF_NEXTFRAME);
 }
 int setpalette(int UNUSED(start), int UNUSED(num), unsigned char * UNUSED(dapal))

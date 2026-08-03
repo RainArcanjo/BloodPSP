@@ -91,6 +91,11 @@ void ambProcess(void)
 
 void ambKillAll(void)
 {
+#ifdef __PSP__
+    nAmbChannels = 0;
+    memset(ambChannels, 0, sizeof(ambChannels));
+    return;
+#endif
     AMB_CHANNEL *pChannel = ambChannels;
     for (int i = 0; i < nAmbChannels; i++, pChannel++)
     {
@@ -110,6 +115,11 @@ void ambKillAll(void)
 
 void ambInit(void)
 {
+#ifdef __PSP__
+    nAmbChannels = 0;
+    memset(ambChannels, 0, sizeof(ambChannels));
+    return;
+#endif
     ambKillAll();
     memset(ambChannels, 0, sizeof(ambChannels));
     for (int nSprite = headspritestat[kStatAmbience]; nSprite >= 0; nSprite = nextspritestat[nSprite]) {

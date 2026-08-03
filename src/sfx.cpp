@@ -446,6 +446,10 @@ void sfxKill3DSound(spritetype *pSprite, int chanId, int soundId)
 
 void sfxKillAllSounds(void)
 {
+#ifdef __PSP__
+    nBonkles = 0;
+    return;
+#endif
     for (int i = nBonkles - 1; i >= 0; i--)
     {
         sfxKillSoundInternal(i);

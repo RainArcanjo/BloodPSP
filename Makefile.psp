@@ -5,6 +5,7 @@ OBJS := platform/psp_bootstrap.o
 # host-compiler compatibility mode. GCC 15 defaults to C23 on this host while
 # the historical JFBuild code expects GNU C17 semantics.
 PSP_BUILD_VARIANT ?= release
+PSP_EXTRA_DEFINES ?=
 
 ifeq ($(PSP_BUILD_VARIANT),diagnostic)
 PSP_BUILD_DEFINES := -DPSP_DIAGNOSTIC_BUILD
@@ -16,8 +17,8 @@ else
 $(error PSP_BUILD_VARIANT must be release or diagnostic)
 endif
 
-CFLAGS += -std=gnu17 -DSMACKER_DISABLE $(PSP_BUILD_DEFINES) -I jfbuild-vita/include -I jfbuild-vita/src
-CXXFLAGS += -std=gnu++14 -fpermissive -DSMACKER_DISABLE $(PSP_BUILD_DEFINES)
+CFLAGS += -std=gnu17 -DSMACKER_DISABLE $(PSP_BUILD_DEFINES) $(PSP_EXTRA_DEFINES) -I jfbuild-vita/include -I jfbuild-vita/src
+CXXFLAGS += -std=gnu++14 -fpermissive -DSMACKER_DISABLE $(PSP_BUILD_DEFINES) $(PSP_EXTRA_DEFINES)
 
 PSP_FW_VERSION := 600
 BUILD_PRX := 1
@@ -61,10 +62,10 @@ ENETOBJ :=
 SMACKEROBJ :=
 
 # The upstream rule invokes a nested make without forwarding the PSP tool
-# names, which makes it accidentally discover host SDL.  Audio remains linked
-# only for API compatibility; its compiled driver is driver_nosound.c.
+# names, which makes it accidentally discover host SDL. The PSP build enables
+# its small native PCM driver; MIDI music remains deliberately unsupported.
 $(AUDIOLIBROOT)/$(JFAUDIOLIB):
-	$(MAKE) -C $(AUDIOLIBROOT) $(JFAUDIOLIB) RELEASE=$(RELEASE) CC=$(CC) AR=$(AR) CFLAGS="-std=gnu17" JFAUDIOLIB_HAVE_SDL=0 JFAUDIOLIB_HAVE_ALSA=0 JFAUDIOLIB_HAVE_VORBIS=0
+	$(MAKE) -C $(AUDIOLIBROOT) $(JFAUDIOLIB) RELEASE=$(RELEASE) CC=$(CC) AR=$(AR) CFLAGS="-std=gnu17 $(PSP_BUILD_DEFINES)" JFAUDIOLIB_HAVE_PSP=1 JFAUDIOLIB_HAVE_SDL=0 JFAUDIOLIB_HAVE_ALSA=0 JFAUDIOLIB_HAVE_VORBIS=0
 	$(RANLIB) $@
 
 .PHONY: blood-objects
@@ -73,7 +74,8 @@ blood-objects: $(GAMEOBJS) $(JMACTOBJ) $(AUDIOLIBROOT)/$(JFAUDIOLIB)
 JFBLOOD_TARGET := jfbloodpsp
 JFBLOOD_ELF := $(JFBLOOD_TARGET).elf
 JFBLOOD_PRX := $(JFBLOOD_TARGET).prx
-JFBLOOD_OBJS := $(GAMEOBJS) platform/psplayer.o platform/psp_posix_stubs.o
+JFBLOOD_OBJS := $(GAMEOBJS) platform/psplayer.o platform/psp_ge.o platform/psp_ge_world.o platform/psp_posix_stubs.o
+JFBLOOD_PERF_OBJ := platform/psp_perf.o
 JFBLOOD_ENGINE := $(EROOT)/src/libengine.a
 
 $(JFBLOOD_ENGINE):
@@ -82,8 +84,8 @@ $(JFBLOOD_ENGINE):
 enginelib:
 	$(MAKE) -B -C $(EROOT) enginelib PLATFORM=PSP RENDERTYPE=PSP CC=$(CC) CXX=$(CXX) AR=$(AR) RANLIB=$(RANLIB) CFLAGS="-std=gnu17 -DENGINE_19960925" USE_POLYMOST=0 USE_OPENGL=0 USE_ASM=0 RELEASE=1
 
-$(JFBLOOD_ELF): blood-objects $(JFBLOOD_ENGINE) $(JFBLOOD_OBJS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(JFBLOOD_OBJS) $(JFBLOOD_ENGINE) $(AUDIOLIBROOT)/$(JFAUDIOLIB) -lm -lpspctrl -lpspdisplay -lpspge -lpsprtc -lpsppower -lpspsdk -lpspuser
+$(JFBLOOD_ELF): blood-objects $(JFBLOOD_ENGINE) $(JFBLOOD_OBJS) $(JFBLOOD_PERF_OBJ)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(JFBLOOD_OBJS) $(JFBLOOD_ENGINE) $(AUDIOLIBROOT)/$(JFAUDIOLIB) $(JFBLOOD_PERF_OBJ) -lm -lpspctrl -lpspdisplay -lpspgum -lpspgu -lpspge -lpsprtc -lpsppower -lpspaudio -lpspsdk -lpspuser
 
 $(JFBLOOD_PRX): $(JFBLOOD_ELF)
 	psp-fixup-imports $<

@@ -17,6 +17,8 @@
 #include "build.h"
 #include "baselayer.h"
 #include "compat.h"
+#include "platform/psp_ge.h"
+#include "platform/psp_ge_world.h"
 
 // jfmact/keyboard.h needs internal typedefs not exposed to this C platform
 // layer.  These are the stable PC scan codes used by the Blood defaults.
@@ -76,9 +78,11 @@ static uint16_t palette565[256];
 static uint16_t display_buffers[2][512 * 272] __attribute__((aligned(64)));
 static int drawbuffer;
 static FILE *psp_log;
-static int psp_log_enabled = 1;
+/* Diagnostics use RAM telemetry by default; file logging is opt-in. */
+static int psp_log_enabled = 0;
+static int psp_ge_enabled;
 #if defined(PSP_DIAGNOSTIC_BUILD)
-int psp_perf_hud;
+int psp_perf_hud = 1;
 
 unsigned int psp_present_us;
 #endif
@@ -142,6 +146,7 @@ static void psp_setup_callbacks(void)
 
 static void shutdownvideo(void)
 {
+    psp_ge_shutdown();
     framebuffer = NULL;
     frameplace = 0;
 }
@@ -151,6 +156,7 @@ static void psp_read_options(void)
     FILE *cfg = fopen("nblood.cfg", "rt");
     char line[128];
     int enabled;
+    char renderer[16];
 
     if (!cfg)
         return;
@@ -161,6 +167,41 @@ static void psp_read_options(void)
         {
             psp_log_enabled = enabled != 0;
         }
+        else if (sscanf(line, " PSPRenderer = %15s", renderer) == 1 ||
+                 sscanf(line, "PSPRenderer=%15s", renderer) == 1)
+        {
+            if (strcmp(renderer, "GE") == 0)
+            {
+                psp_ge_enabled = 1;
+                psp_ge_world_set_enabled(1);
+                psp_ge_world_set_textures_enabled(1);
+                psp_ge_world_set_replace_walls(0);
+                psp_ge_world_set_sector3d_enabled(1);
+                /* Native 3D stays opt-in for diagnostics; the hybrid path uses
+                   validated projected GE geometry. */
+                psp_ge_world_set_sector3d_native_enabled(0);
+                psp_ge_world_set_replace_opaque_enabled(1);
+            }
+            else if (strcmp(renderer, "GEWalls") == 0)
+            {
+                /* Transitional renderer: BUILD keeps portal traversal and all
+                   non-wall rendering; GE rasterizes only opaque wall spans. */
+                psp_ge_enabled = 1;
+                psp_ge_world_set_enabled(1);
+                psp_ge_world_set_textures_enabled(1);
+                psp_ge_world_set_replace_walls(1);
+                psp_ge_world_set_sector3d_enabled(0);
+                psp_ge_world_set_sector3d_native_enabled(0);
+                psp_ge_world_set_replace_opaque_enabled(0);
+            }
+            else if (strcmp(renderer, "Software") == 0)
+            {
+                psp_ge_world_set_replace_opaque_enabled(0);
+                psp_ge_world_set_replace_walls(0);
+                psp_ge_world_set_enabled(0);
+                psp_ge_enabled = 0;
+            }
+        }
 #if defined(PSP_DIAGNOSTIC_BUILD)
         else if (sscanf(line, " PSPPerfHUD = %d", &enabled) == 1 ||
                  sscanf(line, "PSPPerfHUD=%d", &enabled) == 1)
@@ -168,6 +209,46 @@ static void psp_read_options(void)
             psp_perf_hud = enabled != 0;
         }
 #endif
+        else if (sscanf(line, " PSPGE = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGE=%d", &enabled) == 1)
+        {
+            psp_ge_enabled = enabled != 0;
+        }
+        else if (sscanf(line, " PSPGEWorld = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGEWorld=%d", &enabled) == 1)
+        {
+            psp_ge_world_set_enabled(enabled);
+        }
+        else if (sscanf(line, " PSPGEWorldTextures = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGEWorldTextures=%d", &enabled) == 1)
+        {
+            psp_ge_world_set_textures_enabled(enabled);
+        }
+        else if (sscanf(line, " PSPGEWorldReplaceWalls = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGEWorldReplaceWalls=%d", &enabled) == 1)
+        {
+            psp_ge_world_set_replace_walls(enabled);
+        }
+        else if (sscanf(line, " PSPGEWorldPlanes = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGEWorldPlanes=%d", &enabled) == 1)
+        {
+            psp_ge_world_set_planes_enabled(enabled);
+        }
+        else if (sscanf(line, " PSPGEWorldPlanesFill = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGEWorldPlanesFill=%d", &enabled) == 1)
+        {
+            psp_ge_world_set_planes_fill_enabled(enabled);
+        }
+        else if (sscanf(line, " PSPGEWorldSector3D = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGEWorldSector3D=%d", &enabled) == 1)
+        {
+            psp_ge_world_set_sector3d_enabled(enabled);
+        }
+        else if (sscanf(line, " PSPGEWorldSector3DNative = %d", &enabled) == 1 ||
+                 sscanf(line, "PSPGEWorldSector3DNative=%d", &enabled) == 1)
+        {
+            psp_ge_world_set_sector3d_native_enabled(enabled);
+        }
     }
     fclose(cfg);
 }
@@ -178,9 +259,31 @@ int initsystem(void)
     g_useCwd = 1;
 #if defined(PSP_RELEASE_BUILD)
     // A release must not open, create, or update a diagnostic file.
+    psp_read_options();
     psp_log_enabled = 0;
 #else
+    // Performance diagnostics default to RAM-only telemetry. The older
+    // file logger can be explicitly enabled with PSPLog=1 in nblood.cfg.
+    psp_log_enabled = 0;
     psp_read_options();
+#endif
+#if defined(PSP_GE_NATIVE_PROBE_BUILD)
+    /* Self-contained GE diagnostic: do not depend on a user cfg entry. */
+    psp_ge_enabled = 1;
+    psp_ge_world_set_enabled(1);
+    psp_ge_world_set_textures_enabled(1);
+    psp_ge_world_set_sector3d_enabled(1);
+    psp_ge_world_set_sector3d_native_enabled(1);
+    psp_ge_world_set_replace_opaque_enabled(1);
+#endif
+#if defined(PSP_STABLE_PERFORMANCE_BUILD)
+    /* A release safety profile: configuration experiments must never select
+       a partially migrated GE path for the stable gameplay EBOOT. */
+    psp_ge_world_set_replace_opaque_enabled(0);
+    psp_ge_world_set_replace_walls(0);
+    psp_ge_world_set_sector3d_enabled(0);
+    psp_ge_world_set_enabled(0);
+    psp_ge_enabled = 0;
 #endif
     if (psp_log_enabled && !psp_log)
     {
@@ -363,6 +466,24 @@ void showframe(void)
 #endif
 
     if (offscreenrendering || !framebuffer) return;
+
+    if (psp_ge_enabled && !psp_ge_active())
+        psp_ge_enabled = psp_ge_init();
+    if (psp_ge_enabled && psp_ge_active())
+    {
+        if (psp_ge_present(framebuffer, xres, yres, palette565))
+        {
+#if defined(PSP_DIAGNOSTIC_BUILD)
+            psp_present_us = (unsigned int)(psp_ticks() - presentStart);
+#endif
+            return;
+        }
+
+        // A failed GE frame must never make the game unplayable.
+        psp_ge_shutdown();
+        psp_ge_enabled = 0;
+    }
+
     drawbuffer ^= 1;
     dst = display_buffers[drawbuffer];
 

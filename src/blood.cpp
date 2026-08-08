@@ -89,6 +89,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <vitasdk.h>
 #elif defined(__PSP__)
 #include <pspctrl.h>
+# if defined(PSP_DIAGNOSTIC_BUILD)
+#  include "platform/psp_perf.h"
+# endif
 #endif
 
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
@@ -2013,16 +2016,12 @@ void ProcessFrame(void)
 #endif
     viewCorrectPrediction();
     PSP_DIAG_EXIT("exit-after-prediction");
-#if !defined(__PSP__)
     sndProcess();
     ambProcess();
-#endif
     viewUpdateDelirium();
     viewUpdateShake();//t4 = getusecticks()-tstart;tstart = getusecticks();
     PSP_DIAG_EXIT("exit-after-shake");
-#if !defined(__PSP__)
     sfxUpdate3DSounds();//t5 = getusecticks()-tstart;tstart = getusecticks();
-#endif
     if (gMe->hand == 1)
     {
 #define CHOKERATE 8
@@ -2877,6 +2876,10 @@ RESTART:
     static bool frameJustDrawn;
     while (!gQuitGame)
     {
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+        double const pspPerfFrameStart = GAME_PERF_TICKS();
+        double pspPerfRenderTime = 0.0;
+#endif
         bool bDraw;
         if (gGameStarted)
         {//t5 = 0; // faketimerhandler
@@ -2935,7 +2938,13 @@ RESTART:
                 netCheckSync();//t2 = getusecticks()-tstart;
                 if (bDraw)
                 {//tstart = getusecticks();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+                    double const pspPerfRenderStart = GAME_PERF_TICKS();
+#endif
                     viewDrawScreen();//t3 = getusecticks()-tstart;
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+                    pspPerfRenderTime = GAME_PERF_TICKS() - pspPerfRenderStart;
+#endif
 #if defined(EDUKE32) || (defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD))
                     g_gameUpdateAndDrawTime = GAME_PERF_TICKS() - gameUpdateStartTime;
 #endif
@@ -3000,6 +3009,12 @@ RESTART:
             }
             frameJustDrawn = true;//t4 = getusecticks()-tstart;tstart = getusecticks();
             videoNextPage();//t5 = getusecticks()-tstart;
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+            if (gGameStarted)
+                psp_perf_record_frame((uint32_t)((GAME_PERF_TICKS() - pspPerfFrameStart) * 1000.0),
+                                      (uint32_t)(pspPerfRenderTime * 1000.0), psp_present_us,
+                                      (uint32_t)FX_SoundsPlaying());
+#endif
         }
         //scrNextPage();
         if (TestBitString(gotpic, 2342))

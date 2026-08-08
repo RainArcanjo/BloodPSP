@@ -1481,13 +1481,19 @@ void SetupOptionsMenu(void)
 
     menuOptionsSound.Add(&itemOptionsSoundTitle, false);
     menuOptionsSound.Add(&itemOptionsSoundSoundToggle, true);
+#if !defined(__PSP__)
     menuOptionsSound.Add(&itemOptionsSoundMusicToggle, false);
+#endif
     menuOptionsSound.Add(&itemOptionsSound3DToggle, false);
     menuOptionsSound.Add(&itemOptionsSoundSoundVolume, false);
+#if !defined(__PSP__)
     menuOptionsSound.Add(&itemOptionsSoundMusicVolume, false);
+#endif
     menuOptionsSound.Add(&itemOptionsSoundSampleRate, false);
     menuOptionsSound.Add(&itemOptionsSoundNumVoices, false);
+#if !defined(__PSP__)
     menuOptionsSound.Add(&itemOptionsSoundCDToggle, false);
+#endif
 #ifdef EDUKE32
     menuOptionsSound.Add(&itemOptionsSoundMusicDevice, false);
     menuOptionsSound.Add(&itemOptionsSoundSF2Bank, false);
@@ -2199,6 +2205,13 @@ void UpdateSoundToggle(CGameMenuItemZBool *pItem)
 
 void UpdateMusicToggle(CGameMenuItemZBool *pItem)
 {
+#if defined(__PSP__)
+    // MIDI music has no PSP synthesiser yet. Keep stale configs and future
+    // menu wiring from reaching the uninitialised generic MIDI path.
+    MusicToggle = 0;
+    pItem->at20 = 0;
+    return;
+#endif
     MusicToggle = pItem->at20;
     if (!MusicToggle)
         sndStopSong();
@@ -2216,6 +2229,11 @@ void Update3DToggle(CGameMenuItemZBool *pItem)
 
 void UpdateCDToggle(CGameMenuItemZBool *pItem)
 {
+#if defined(__PSP__)
+    CDAudioToggle = 0;
+    pItem->at20 = 0;
+    return;
+#endif
     CDAudioToggle = pItem->at20;
     if (gGameStarted || gDemo.at1)
         levelTryPlayMusicOrNothing(gGameOptions.nEpisode, gGameOptions.nLevel);

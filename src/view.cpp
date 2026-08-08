@@ -68,7 +68,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 extern "C" int psp_perf_hud;
-extern "C" unsigned int psp_present_us;
+# include "platform/psp_perf.h"
 #endif
 
 struct VIEW {
@@ -4420,15 +4420,16 @@ void viewPrintFPS(void)
 # if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     if (!psp_perf_hud) return;
 
-    // U and R come from the game loop in milliseconds. P is the previous
-    // frame's CPU presentation work: software scaling plus cache writeback.
-    double renderTime = g_gameUpdateAndDrawTime - g_gameUpdateTime;
-    if (renderTime < 0.0) renderTime = 0.0;
+    PSPPerfSnapshot perf;
+    if (!psp_perf_get_snapshot(&perf)) return;
     char tempbuf[64];
     int32_t x = (xdim < 640);
-    int32_t chars = Bsprintf(tempbuf, "%dfps U%.1f R%.1f P%.1f", gFrameRate,
-                             g_gameUpdateTime, renderTime, psp_present_us * 0.001);
+    int32_t chars = Bsprintf(tempbuf, "F%.1f R%.1f P%.1f", perf.frame_us * 0.001,
+                             perf.render_us * 0.001, perf.present_us * 0.001);
     printext256(windowx2-(chars<<(3-x))-2, windowy1+2, whitecol, -1, tempbuf, x);
+    chars = Bsprintf(tempbuf, "A%.1f V%d C%d%s", perf.audio_us * 0.001,
+                     perf.voices, perf.mix_callbacks, perf.dump_status ? " SAVED" : "");
+    printext256(windowx2-(chars<<(3-x))-2, windowy1+10, whitecol, -1, tempbuf, x);
 # else
     if (!gShowFps) return;
 

@@ -121,6 +121,14 @@ static int32_t S_OpenAudio(const char *fn, char searchfirst, uint8_t const ismus
 
 int sndPlaySong(const char *songName, bool bLoop)
 {
+#if defined(__PSP__)
+    // Effects use the native PCM backend, but Blood's music is MIDI and no
+    // PSP synthesiser is installed yet. Do not touch the MIDI/CD APIs.
+    UNREFERENCED_PARAMETER(songName);
+    UNREFERENCED_PARAMETER(bLoop);
+    MusicToggle = 0;
+    return 0;
+#endif
     if (!MusicToggle)
         return 0;
     if (!songName || strlen(songName) == 0)
@@ -285,8 +293,7 @@ bool sndIsSongPlaying(void)
 void sndFadeSong(int nTime)
 {
 #if defined(__PSP__)
-    // Audio is not implemented for the PSP MVP. Do not call the legacy
-    // mixer/CD shutdown path: it resolves through unavailable imports.
+    // PCM effects are active, but MIDI music is intentionally unavailable.
     UNREFERENCED_PARAMETER(nTime);
     return;
 #else
@@ -314,6 +321,9 @@ void sndFadeSong(int nTime)
 void sndSetMusicVolume(int nVolume)
 {
     MusicVolume = nVolume;
+#if defined(__PSP__)
+    return;
+#endif
     if (bWaveMusic && nWaveMusicHandle >= 0)
         FX_SetPan(nWaveMusicHandle, nVolume, nVolume, nVolume);
     MUSIC_SetVolume(nVolume);
@@ -336,6 +346,12 @@ void sndStopSong(void)
         nWaveMusicHandle = -1;
         bWaveMusic = false;
     }
+
+#if defined(__PSP__)
+    ALIGNED_FREE_AND_NULL(pSongPtr);
+    nSongSize = 0;
+    return;
+#endif
 
     MUSIC_StopSong();
 #ifndef EDUKE32
@@ -689,7 +705,9 @@ void sndTerm(void)
     sndActive = false;
     sndStopSong();
     DeinitSoundDevice();
+#if !defined(__PSP__)
     DeinitMusicDevice();
+#endif
 }
 extern char *pUserSoundRFF;
 void sndInit(void)
@@ -700,15 +718,16 @@ void sndInit(void)
     bWaveMusic = false;
     nWaveMusicHandle = -1;
 #ifdef __PSP__
-    // The MVP deliberately has no audio backend.  Do not initialize
-    // MultiVoc's mixer: it would reserve memory despite the null driver.
-    SoundToggle = 0;
+    // The native PSP driver supplies PCM effects through MultiVoc. Blood's
+    // original music path is MIDI and has no PSP synthesiser yet, so do not
+    // initialise the generic music/CD backends in this build.
     MusicToggle = 0;
-    sndActive = false;
-    return;
+    MusicDevice = -1;
 #endif
     InitSoundDevice();
+#if !defined(__PSP__)
     InitMusicDevice();
+#endif
     sndActive = true;
     sndLoadGMTimbre();
 }

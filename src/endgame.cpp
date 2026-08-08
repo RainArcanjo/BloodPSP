@@ -124,10 +124,8 @@ void CEndGameMgr::Finish(void)
 #endif
     levelSetupOptions(gGameOptions.nEpisode, gNextLevel);
     gInitialNetPlayers = numplayers;
-#if !defined(__PSP__)
     FX_StopAllSounds();
     sndKillAllSounds();
-#endif
     gStartNewGame = 1;
     gInputMode = (INPUT_MODE)at1;
     at0 = 0;

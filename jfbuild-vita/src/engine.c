@@ -9,6 +9,9 @@
 #define ENGINE
 
 #include "build.h"
+#if defined RENDERTYPEPSP
+# include "../../platform/psp_ge_world.h"
+#endif
 #include "pragmas.h"
 #include "cache1d.h"
 #include "a.h"
@@ -1530,6 +1533,17 @@ static void ceilscan(int x1, int x2, int sectnum)
 	if (sec->visibility != 0) globvis = mulscale4(globvis,(int)((unsigned char)(sec->visibility+16)));
 	globalorientation = (int)sec->ceilingstat;
 
+#if defined RENDERTYPEPSP
+	/* The GE pass receives the same portal-clipped span coverage as the
+	   software path. It remains an overlay until textured planes are proven. */
+	if (!(globalorientation & 1))
+		psp_ge_world_capture_ceiling(x1, x2, umost, dmost, uplc);
+    if (psp_ge_world_replace_opaque_enabled() && !(globalorientation & 1))
+    {
+        faketimerhandler();
+        return;
+    }
+#endif
 
 	if ((globalorientation&64) == 0)
 	{
@@ -1701,6 +1715,15 @@ static void florscan(int x1, int x2, int sectnum)
 	if (sec->visibility != 0) globvis = mulscale4(globvis,(int)((unsigned char)(sec->visibility+16)));
 	globalorientation = (int)sec->floorstat;
 
+#if defined RENDERTYPEPSP
+	if (!(globalorientation & 1))
+		psp_ge_world_capture_floor(x1, x2, umost, dmost, dplc);
+    if (psp_ge_world_replace_opaque_enabled() && !(globalorientation & 1))
+    {
+        faketimerhandler();
+        return;
+    }
+#endif
 
 	if ((globalorientation&64) == 0)
 	{
@@ -1859,7 +1882,40 @@ static void wallscan(int x1, int x2, short *uwal, short *dwal, int *swal, int *l
 	if ((uwal[x1] > ydimen) && (uwal[x2] > ydimen)) return;
 	if ((dwal[x1] < 0) && (dwal[x2] < 0)) return;
 
+#if defined RENDERTYPEPSP
+    if (psp_ge_world_enabled())
+    {
+        psp_ge_world_capture_wall(x1, x2,
+            max(uwal[x1], umost[x1]), max(uwal[x2], umost[x2]),
+            min(dwal[x1], dmost[x1]), min(dwal[x2], dmost[x2]));
+    }
+#endif
 	if (waloff[globalpicnum] == 0) loadtile(globalpicnum);
+#if defined RENDERTYPEPSP
+    /* Masked/translucent walls remain in the CPU overlay for this first
+       hybrid pass. Opaque wall spans become GE materials. */
+    if (!psp_ge_world_replace_opaque_enabled() ||
+        (globalorientation & (16 | 128)) == 0)
+    {
+        psp_ge_world_capture_textured_wall(x1, x2, uwal, dwal, swal, lwal,
+            umost, dmost, globalhoriz, globalpicnum, globalpal, globalshade,
+            globalxpanning, globalyscale, globalzd, globalshiftval);
+    }
+    if (psp_ge_world_replace_opaque_enabled() &&
+        (globalorientation & (16 | 128)) == 0)
+    {
+        faketimerhandler();
+        return;
+    }
+    /* Masked/translucent walls need BUILD's exact ordering against sprites.
+       Only ordinary opaque walls are safe to defer to the GE in this pass. */
+    if (psp_ge_world_replace_walls() &&
+        (globalorientation & (16 | 128)) == 0)
+    {
+        faketimerhandler();
+        return;
+    }
+#endif
 
 	xnice = (pow2long[picsiz[globalpicnum]&15] == tsizx);
 	if (xnice) tsizx--;
@@ -2236,6 +2292,19 @@ static void grouscan(int dax1, int dax2, int sectnum, unsigned char dastat)
 	if ((tilesizx[globalpicnum] <= 0) || (tilesizy[globalpicnum] <= 0)) return;
 	if (waloff[globalpicnum] == 0) loadtile(globalpicnum);
 
+#if defined RENDERTYPEPSP
+	/* Sloped sectors use grouscan(), not ceilscan()/florscan(). */
+	if (dastat == 0)
+		psp_ge_world_capture_ceiling(dax1, dax2, umost, dmost, uplc);
+	else
+		psp_ge_world_capture_floor(dax1, dax2, umost, dmost, dplc);
+    if (psp_ge_world_replace_opaque_enabled() && !(globalorientation & 1))
+    {
+        faketimerhandler();
+        return;
+    }
+#endif
+
 	wal = &wall[sec->wallptr];
 	wx = wall[wal->point2].x - wal->x;
 	wy = wall[wal->point2].y - wal->y;
@@ -2525,6 +2594,10 @@ static void drawalls(int bunch)
 
 	z = bunchfirst[bunch];
 	sectnum = thesector[z]; sec = &sector[sectnum];
+#if defined RENDERTYPEPSP
+	/* The GE proof follows the exact portal/bunch traversal selected by BUILD. */
+	psp_ge_world_capture_visible_sector(sectnum);
+#endif
 
 	andwstat1 = 0xff; andwstat2 = 0xff;
 	for(;z>=0;z=p2[z])  //uplc/dplc calculation
@@ -5878,7 +5951,14 @@ void drawrooms(int daposx, int daposy, int daposz,
 #endif
 	//============================================================================= //POLYMOST ENDS
 
+	psp_ge_world_begin(xdimen, ydimen);
 	begindrawing();	//{{{
+#if defined RENDERTYPEPSP
+    /* This indexed surface now holds only CPU overlays. Index 0 is made
+       transparent by the GE after the opaque world pass. */
+    if (psp_ge_world_replace_opaque_enabled())
+        clearview(0);
+#endif
 
 	frameoffset = frameplace + windowy1*bytesperline + windowx1;
 
@@ -5893,6 +5973,11 @@ void drawrooms(int daposx, int daposy, int daposz,
 		updatesector(globalposx,globalposy,&globalcursectnum);
 		if (globalcursectnum < 0) globalcursectnum = i;
 	}
+
+#if defined RENDERTYPEPSP
+	psp_ge_world_capture_sector(globalcursectnum, globalposx, globalposy,
+	                            globalposz, cosglobalang, singlobalang);
+#endif
 
 	globparaceilclip = 1;
 	globparaflorclip = 1;

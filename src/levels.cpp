@@ -323,10 +323,20 @@ void levelGetNextLevels(int nEpisode, int nLevel, int *pnEndingA, int *pnEndingB
 
 void levelEndLevel(int nExitType)
 {
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: levelEnd entered type=%d ep=%d level=%d flags=%x\n",
+               nExitType, gGameOptions.nEpisode, gGameOptions.nLevel, gGameOptions.uGameFlags);
+#endif
     int nEndingA, nEndingB;
     EPISODEINFO *pEpisodeInfo = &gEpisodeInfo[gGameOptions.nEpisode];
     gGameOptions.uGameFlags |= 1;
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: levelEnd flags set\n");
+#endif
     levelGetNextLevels(gGameOptions.nEpisode, gGameOptions.nLevel, &nEndingA, &nEndingB);
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: levelEnd targets normal=%d secret=%d\n", nEndingA, nEndingB);
+#endif
     switch (nExitType)
     {
     case kLevelExitNormal:
@@ -360,6 +370,9 @@ void levelEndLevel(int nExitType)
             gNextLevel = nEndingB;
         break;
     }
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: levelEnd complete next=%d flags=%x\n", gNextLevel, gGameOptions.uGameFlags);
+#endif
 }
 
 void levelRestart(void)

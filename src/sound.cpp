@@ -284,6 +284,12 @@ bool sndIsSongPlaying(void)
 
 void sndFadeSong(int nTime)
 {
+#if defined(__PSP__)
+    // Audio is not implemented for the PSP MVP. Do not call the legacy
+    // mixer/CD shutdown path: it resolves through unavailable imports.
+    UNREFERENCED_PARAMETER(nTime);
+    return;
+#else
     UNREFERENCED_PARAMETER(nTime);
     // NUKE-TODO:
     //if (MusicDevice == -1)
@@ -301,6 +307,7 @@ void sndFadeSong(int nTime)
     MUSIC_StopSong();
 #ifndef EDUKE32
     CD_Stop();
+#endif
 #endif
 }
 

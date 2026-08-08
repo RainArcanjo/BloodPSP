@@ -431,6 +431,12 @@ static void psp_set_key(int scan, int down)
     if (keystatus[scan] == down)
         return;
     keystatus[scan] = down;
+    if (down)
+    {
+        keyfifo[keyfifoend] = scan;
+        keyfifo[(keyfifoend + 1) & (KEYFIFOSIZ - 1)] = down;
+        keyfifoend = (keyfifoend + 2) & (KEYFIFOSIZ - 1);
+    }
     if (keypresscallback)
         keypresscallback(scan, down);
 }
@@ -472,6 +478,7 @@ static void psp_apply_keyboard_controls(uint32_t buttons)
     psp_set_key(PSP_SC_X, l1 && !l1Square && !l1Triangle);
     psp_set_key(PSP_SC_RIGHTCTRL, !!(buttons & PSP_CTRL_RTRIGGER));
     psp_set_key(PSP_SC_TAB, !!(buttons & PSP_CTRL_SELECT));
+    psp_set_key(PSP_SC_ESCAPE, !!(buttons & PSP_CTRL_START));
     psp_set_key(PSP_SC_CAPSLOCK, l1Square);
     psp_set_key(PSP_SC_QUOTE, !!(buttons & PSP_CTRL_TRIANGLE) && !l1Triangle);
 }

@@ -505,13 +505,22 @@ void evSend(int nIndex, int nType, int rxId, COMMAND_ID command, int causerID)
         else viewSetSystemMessage("Invalid TextOver command by xobject #%d (object type %d)", nIndex, nType);
         return;
     case kChannelLevelExitNormal:
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+        initprintf("PSP transition: level-exit-normal event\n");
+#endif
         levelEndLevel(kLevelExitNormal);
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+        initprintf("PSP transition: level-exit-normal returned\n");
+#endif
         return;
     case kChannelLevelExitSecret:
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+        initprintf("PSP transition: level-exit-secret event\n");
+#endif
         levelEndLevel(kLevelExitSecret);
         return;
     #ifdef NOONE_EXTENSIONS
-    // finished level and load custom level ¹ via numbered command.
+    // finished level and load custom level via numbered command.
     case kChannelModernEndLevelCustom:
         if (command >= kCmdNumberic) levelEndLevelCustom(command - kCmdNumberic);
         else viewSetSystemMessage("Invalid Level-Exit# command by xobject #%d (object type %d)", nIndex, nType);

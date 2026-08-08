@@ -119,11 +119,15 @@ extern bool gStartNewGame;
 
 void CEndGameMgr::Finish(void)
 {
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+    initprintf("PSP transition: level-stats confirmed, next=%d\n", gNextLevel);
+#endif
     levelSetupOptions(gGameOptions.nEpisode, gNextLevel);
     gInitialNetPlayers = numplayers;
-    //if (FXDevice != -1)
-        FX_StopAllSounds();
+#if !defined(__PSP__)
+    FX_StopAllSounds();
     sndKillAllSounds();
+#endif
     gStartNewGame = 1;
     gInputMode = (INPUT_MODE)at1;
     at0 = 0;

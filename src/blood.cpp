@@ -93,8 +93,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 # define PSP_DIAG_MARK(stage) PSP_DIAG_LOG("PSP diag: %s clock=%d\n", stage, (int)totalclock)
+# define PSP_DIAG_EXIT(stage) do { if (gGameOptions.uGameFlags & 1) PSP_DIAG_MARK(stage); } while (0)
 #else
 # define PSP_DIAG_MARK(stage) ((void)0)
+# define PSP_DIAG_EXIT(stage) ((void)0)
 #endif
 
 const char* AppProperName = APPNAME;
@@ -1985,32 +1987,39 @@ void ProcessFrame(void)
 #endif
     trProcessBusy();
     evProcess((int)gFrameClock);
+    PSP_DIAG_EXIT("exit-after-event");
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     if (pspDiagThisFrame)
         PSP_DIAG_MARK("frame-event");
 #endif
     seqProcess(4);
+    PSP_DIAG_EXIT("exit-after-sequence");
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     if (pspDiagThisFrame)
         PSP_DIAG_MARK("frame-sequence");
 #endif
     DoSectorPanning();//t2 = getusecticks()-tstart;tstart = getusecticks();
+    PSP_DIAG_EXIT("exit-after-sector-panning");
     actProcessSprites();//t3 = getusecticks()-tstart;tstart = getusecticks();
+    PSP_DIAG_EXIT("exit-after-actors");
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     if (pspDiagThisFrame)
         PSP_DIAG_MARK("frame-actors");
 #endif
     actPostProcess();
+    PSP_DIAG_EXIT("exit-after-actor-post");
 #ifdef POLYMER
     G_RefreshLights();
 #endif
     viewCorrectPrediction();
+    PSP_DIAG_EXIT("exit-after-prediction");
 #if !defined(__PSP__)
     sndProcess();
     ambProcess();
 #endif
     viewUpdateDelirium();
     viewUpdateShake();//t4 = getusecticks()-tstart;tstart = getusecticks();
+    PSP_DIAG_EXIT("exit-after-shake");
 #if !defined(__PSP__)
     sfxUpdate3DSounds();//t5 = getusecticks()-tstart;tstart = getusecticks();
 #endif
@@ -2028,6 +2037,7 @@ void ProcessFrame(void)
     gLevelTime++;
     gFrame++;
     gFrameClock += 4;
+    PSP_DIAG_EXIT("exit-before-endgame-dispatch");
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
     if (pspDiagThisFrame)
     {
@@ -2048,8 +2058,19 @@ void ProcessFrame(void)
         }
         if (gDemo.at0)
             gDemo.Close();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+        PSP_DIAG_MARK("exit-after-demo-close");
+        PSP_DIAG_MARK("exit-before-fade-song");
+#endif
         sndFadeSong(4000);
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+        PSP_DIAG_MARK("exit-after-fade-song");
+        PSP_DIAG_MARK("exit-before-seq-kill");
+#endif
         seqKillAll();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+        PSP_DIAG_MARK("exit-after-seq-kill");
+#endif
         if (gGameOptions.uGameFlags&2)
         {
             if (gGameOptions.nGameType == 0)
@@ -2065,7 +2086,13 @@ void ProcessFrame(void)
         }
         else
         {
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+            PSP_DIAG_MARK("transition-before-endgame-screen");
+#endif
             gEndGameMgr.Setup();
+#if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
+            PSP_DIAG_MARK("transition-endgame-screen-ready");
+#endif
             viewResizeView(gViewSize);
         }
     }//t7 = getusecticks()-tstart;tstart = getusecticks();
@@ -2885,9 +2912,7 @@ RESTART:
                             if (i >= 0)
                                 break;
                             faketimerhandler(); // t5
-                            PSP_DIAG_MARK("loop-before-process-frame");
                             ProcessFrame();
-                            PSP_DIAG_MARK("loop-after-process-frame");
                         }
                     } while (totalclock >= gNetFifoClock && ready2send);
                     gameUpdate = true;

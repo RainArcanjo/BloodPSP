@@ -6,13 +6,14 @@ OBJS := platform/psp_bootstrap.o
 # the historical JFBuild code expects GNU C17 semantics.
 PSP_BUILD_VARIANT ?= release
 PSP_EXTRA_DEFINES ?=
+PSP_PROJECT_NAME := Blood PSP
 
 ifeq ($(PSP_BUILD_VARIANT),diagnostic)
 PSP_BUILD_DEFINES := -DPSP_DIAGNOSTIC_BUILD
-PSP_PBP_TITLE := JFBlood PSP (Diagnostic)
+PSP_PBP_TITLE := Blood
 else ifeq ($(PSP_BUILD_VARIANT),release)
 PSP_BUILD_DEFINES := -DPSP_RELEASE_BUILD
-PSP_PBP_TITLE := JFBlood PSP (MVP)
+PSP_PBP_TITLE := Blood
 else
 $(error PSP_BUILD_VARIANT must be release or diagnostic)
 endif
@@ -23,7 +24,7 @@ CXXFLAGS += -std=gnu++14 -fpermissive -DSMACKER_DISABLE $(PSP_BUILD_DEFINES) $(P
 PSP_FW_VERSION := 600
 BUILD_PRX := 1
 EXTRA_TARGETS := EBOOT.PBP
-PSP_EBOOT_TITLE := JFBlood PSP Bootstrap
+PSP_EBOOT_TITLE := Blood
 
 include $(PSPSDK)/lib/build.mak
 
@@ -107,4 +108,4 @@ blood-eboot-diagnostic:
 
 blood-eboot-build: $(JFBLOOD_PRX)
 	mksfoex "$(PSP_PBP_TITLE)" PARAM.SFO
-	pack-pbp EBOOT.PBP PARAM.SFO NULL NULL NULL NULL NULL $(JFBLOOD_PRX) NULL
+	pack-pbp EBOOT.PBP PARAM.SFO rsrc/ICON0.PNG NULL NULL rsrc/PIC1.PNG NULL $(JFBLOOD_PRX) NULL

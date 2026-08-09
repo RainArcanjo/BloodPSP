@@ -1,11 +1,7 @@
-[submodule "jfbuild"]
-	path = jfbuild
-	url = ../jfbuild
-	branch = amiga
 [submodule "jfaudiolib"]
 	path = jfaudiolib
-	url = ../jfaudiolib
+	url = https://github.com/BSzili/jfaudiolib.git
 	branch = amiga
 [submodule "jfmact"]
 	path = jfmact
-	url = ../jfmact
+	url = https://github.com/BSzili/jfmact.git

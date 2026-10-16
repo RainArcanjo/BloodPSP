@@ -322,7 +322,10 @@ void CONFIG_SetDefaults(void)
     else
 # endif
     {
-#ifdef __AMIGA__
+#ifdef __PSP__
+        gSetup.xdim = 480;
+        gSetup.ydim = 272;
+#elif defined(__AMIGA__)
         gSetup.xdim = 320;
         gSetup.ydim = 200;
 #else
@@ -383,7 +386,11 @@ void CONFIG_SetDefaults(void)
     gBrightness = 8;
     //ud.config.ShowWeapons     = 0;
     SoundToggle     = 1;
+#ifdef __PSP__
+    CDAudioToggle = 1;
+#else
     CDAudioToggle = 0;
+#endif
 #ifndef EDUKE32
     FXDevice = 0;
     MusicDevice = 0;
@@ -444,7 +451,11 @@ void CONFIG_SetDefaults(void)
     gViewSize = 2;
     gTurnSpeed = 92;
     gDetail = 4;
+#ifdef __PSP__
+    gAutoRun = 1; // wa59 controls dedicate both shoulder buttons to strafing.
+#else
     gAutoRun = 0;
+#endif
     gViewInterpolate = 1;
     gViewHBobbing = 1;
     gViewVBobbing = 1;
@@ -562,7 +573,11 @@ void CONFIG_SetDefaults(void)
         CONTROL_MapDigitalAxis(i, JoystickDigitalFunctions[i][1], 1);
 #endif
 
+#ifdef __PSP__
+        JoystickAnalogueAxes[i] = (i == 0) ? analog_turning : (i == 1) ? analog_moving : -1;
+#else
         JoystickAnalogueAxes[i] = CONFIG_AnalogNameToNum(joystickanalogdefaults[i]);
+#endif
 #ifndef EDUKE32
         CONTROL_MapAnalogAxis(i, JoystickAnalogueAxes[i], controldevice_joystick);
 #else

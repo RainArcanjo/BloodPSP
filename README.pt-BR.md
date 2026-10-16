@@ -22,9 +22,13 @@ Este não é um port finalizado. Crashes são esperados porque boa parte do jogo
 
 Limitações atuais:
 
-- Música MIDI está desativada. A build PSP ainda não tem sintetizador de música.
+- Faixas OGG gravadas podem ser reproduzidas em streaming. Copie `blood02.ogg` até `blood09.ogg` da instalação Steam para a subpasta `music/` ao lado da EBOOT. `CDAudioToggle = 1` seleciona as faixas indicadas por `Track` no `BLOOD.INI`; a introdução usa `blood02.ogg`.
+- Música MIDI usa TinySoundFont. Coloque um banco General MIDI pequeno chamado `SOUNDFONT.SF2` ao lado da EBOOT; sem ele, apenas a alternativa MIDI fica sem música (OGG e efeitos continuam funcionando). Prefira bancos de até cerca de 2 MB: os samples ocupam mais RAM depois de carregados.
 - Rede, vídeos Smacker e voxels não fazem parte da build atual.
 - O renderer de mundo pela GE do PSP é experimental e fica desativado na release estável.
+
+
+As contribuições de **wa59** estão integradas para teste. A resolução continua selecionável no menu **Options > Display Setup > Video Mode** e em `nblood.cfg`; a configuração distribuída começa em 480×272. A correção de saves restaura os ponteiros do jogador e usa o preload limitado do PSP ao carregar. Essas mudanças precisam de validação no PSP/PPSSPP.
 
 ## Instalação
 
@@ -130,18 +134,27 @@ make -f Makefile.psp blood-eboot-diagnostic
 
 Esse comando sobrescreve `EBOOT.PBP` e também cria `EBOOT-diagnostic.PBP`. Ele serve para depuração, não para medir desempenho.
 
+
+A build PSP aplica automaticamente `patches/jfaudiolib-psp-midi.patch` ao submódulo fixado, conectando o backend nativo de áudio do wa59. O patch fica versionado no repositório principal; não é necessário trocar os commits dos submódulos.
+
 ### Observações
 
 - `psp-fixup-imports` pode mostrar um aviso de "stubs out of order" com o SDK atual. A compilação só terminou quando o Make retorna código `0` e `EBOOT.PBP` existe. Teste cada build em um PSP real.
 - Os dados do jogo não são necessários para compilar, somente para executar a EBOOT.
 - `rsrc/ICON0.PNG` e `rsrc/PIC1.PNG` são incluídos na EBOOT no passo final de `pack-pbp`.
+O motor PSP usa `-fwrapv` para preservar a aritm?tica de 32 bits do BUILD. Isso evita acessos fora da tabela de raiz quadrada em paredes longas de setores inclinados, como no WILLARD.MAP.
+
+## Mapas personalizados
+
+Coloque mapas de Blood (`.MAP`) na subpasta `usermaps/` ao lado da `EBOOT.PBP`. A pasta é criada automaticamente ao iniciar no PSP. Abra **NEW GAME > USER MAP**, escolha o arquivo com **X** e selecione a dificuldade. O seletor aceita `.MAP` e `.map`, e permite navegar por subpastas. Não é necessário copiar backups `.BAK`. Veja [usermaps/README.md](usermaps/README.md).
+
 ## Controles
 
-- Analógico ou D-pad: mover e virar
-- X: pular; O: agachar; Quadrado: usar
-- Triângulo: próxima arma; L + Triângulo: arma anterior
-- L: tiro secundário; R: tiro primário
-- L + Quadrado: alternar Always Run
+- Analógico: mover e virar, com zona morta central
+- X: atirar; Quadrado: usar; Triângulo: pular; Círculo: agachar
+- L/R: andar de lado para a esquerda/direita (strafe)
+- L + R + X: tiro secundário
+- D-pad: cima escolhe o próximo item; baixo usa o item; esquerda/direita troca de arma
 - Select: mapa; Start: menu/voltar; HOME: retornar à XMB
 
 ## `nblood.cfg`
@@ -152,8 +165,11 @@ Mantenha este arquivo ao lado do EBOOT. A compilação não o substitui.
 - `ScreenWidth = 480` e `ScreenHeight = 272` é mais nítido, mas consome mais CPU.
 - `SoundToggle = 0` desativa efeitos sonoros e é o ganho de desempenho ligado a áudio mais direto.
 - `NumVoices = 8` é o padrão. Valores menores, como `4`, podem ajudar em cenas cheias, mas podem cortar sons.
-- `MixRate` ainda não é uma opção confiável de desempenho: o driver PCM do PSP abre em 44100 Hz.
-- Música é desativada pela build PSP, independentemente de `MusicToggle`.
+- `MixRate` seleciona a taxa de áudio suportada pelo PSP; 22050 Hz é o padrão desta configuração.
+- `MusicToggle = 0` desativa a música; `1` habilita. O menu Sound Setup expõe MUSIC, MUSIC VOLUME e OGG TRACKS.
+- `CDAudioToggle = 1` prefere as faixas OGG gravadas; `0` usa os nomes MIDI das fases. Se faltar uma faixa OGG, há tentativa de usar a música MIDI original.
+- OGG usa um decoder com arena de 512 KiB e um buffer PCM de 32 KiB; não carrega a faixa inteira na RAM. A taxa de saída acompanha `MixRate`.
+- `AutoRun` permanece configurável pelo menu e pelo arquivo. O padrão PSP é `1`.
 
 `PSPLog` e `PSPPerfHUD` são opções da build diagnóstica. A release não grava logs periódicos.
 
@@ -161,6 +177,9 @@ Mantenha este arquivo ao lado do EBOOT. A compilação não o substitui.
 
 | Projeto / pessoas | Papel | Link |
 | --- | --- | --- |
+| Sean Barrett / stb_vorbis | Decoder Ogg Vorbis em streaming (MIT / domínio público) | [stb](https://github.com/nothings/stb) |
+| wa59 | Strafe e zona morta do analógico, música MIDI com TinySoundFont, correção de carregamento de saves e ajustes para resolução nativa | Código enviado diretamente ao projeto; veja [CREDITS.md](CREDITS.md) |
+| Bernhard Schelling / TinySoundFont | Sintetizador SoundFont2 (MIT) | [TinySoundFont](https://github.com/schellingb/TinySoundFont) |
 | Monolith Productions e detentores de Blood | Jogo e dados originais | [Blood](https://www.gog.com/en/game/one_unit_whole_blood) |
 | Ken Silverman | Engine BUILD | [advsys.net](https://advsys.net/ken/) |
 | Jonathon Fowler e contribuidores do JFBuild | JFBuild | [JFBuild](https://github.com/jonof/jfbuild) |

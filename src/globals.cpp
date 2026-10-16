@@ -60,6 +60,12 @@ void _ThrowError(const char *pzFormat, ...)
     va_start(args, pzFormat);
     vsprintf(buffer, pzFormat, args);
     initprintf("%s(%i): %s\n", _module, _line, buffer);
+#ifdef __PSP__
+    {
+        FILE *f = fopen("error.log", "a");
+        if (f) { fprintf(f, "%s(%i): %s\n", _module, _line, buffer); fclose(f); }
+    }
+#endif
 
 #ifdef WM_MSGBOX_WINDOW
     char titlebuf[256];
@@ -88,6 +94,12 @@ void _consoleSysMsg(const char* pzFormat, ...) {
 void __dassert(const char * pzExpr, const char * pzFile, int nLine)
 {
     initprintf("Assertion failed: %s in file %s at line %i\n", pzExpr, pzFile, nLine);
+#ifdef __PSP__
+    {
+        FILE *f = fopen("error.log", "a");
+        if (f) { fprintf(f, "Assertion failed: %s in file %s at line %i\n", pzExpr, pzFile, nLine); fclose(f); }
+    }
+#endif
 
 #ifdef WM_MSGBOX_WINDOW
     char titlebuf[256];

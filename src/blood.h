@@ -74,6 +74,9 @@ extern int gMenuPicnum;
 
 void QuitGame(void);
 void PreloadCache(void);
+#ifdef __PSP__
+void PreloadCachePSP(void); // Bounded cache reload for save games (wa59).
+#endif
 void StartLevel(GAMEOPTIONS *gameOptions);
 void ProcessFrame(void);
 void ScanINIFiles(void);

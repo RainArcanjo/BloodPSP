@@ -94,6 +94,10 @@ ENGINEOBJS+= \
 # netinet headers unavailable in newlib; use the engine's null backend just as
 # the Vita port does.
 ifeq ($(RENDERTYPE),PSP)
+# BUILD fixed-point math depends on 32-bit wrapping signed arithmetic.
+# Without this, GCC may treat squared wall lengths as nonnegative and turn
+# nsqrtasm lookup bounds into a signed comparison (WILLARD slopes overflow).
+OURCFLAGS += -fwrapv
 	ENGINEOBJS := $(filter-out $(SRC)/mmulti.$o,$(ENGINEOBJS)) $(SRC)/mmulti_null.$o
 endif
 

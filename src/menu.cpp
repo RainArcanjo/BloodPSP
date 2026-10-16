@@ -39,6 +39,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "screen.h"
 #include "sound.h"
 #include "view.h"
+#ifdef __PSP__
+#include "../platform/psp_paths.h"
+#define USERMAP_START_DIRECTORY PSP_USERMAP_PATH
+#else
+#define USERMAP_START_DIRECTORY "./"
+#endif
 
 #ifdef __vita__
 #include <vitasdk.h>
@@ -267,7 +273,7 @@ CGameMenuItemChain7F2F0 itemEpisodes[kMaxEpisodes-1];
 CGameMenu menuUserMap;
 CGameMenuItemChain itemUserMap("USER MAP", 1, 0, 60, 320, 1, &menuUserMap, 0, NULL, 0);
 CGameMenuItemTitle itemUserMapTitle("USER MAP", 1, 160, 20, 2038);
-CGameMenuFileSelect itemUserMapList("", 3, 0, 0, 0, "./", "*.map", gGameOptions.szUserMap, ShowDifficulties, 0);
+CGameMenuFileSelect itemUserMapList("", 3, 0, 0, 0, USERMAP_START_DIRECTORY, "*.map", gGameOptions.szUserMap, ShowDifficulties, 0);
 
 CGameMenuItemTitle itemDifficultyTitle("DIFFICULTY", 1, 160, 20, 2038);
 CGameMenuItemChain itemDifficulty1("STILL KICKING", 1, 0, 60, 320, 1, NULL, -1, SetDifficultyAndStart, 0);
@@ -363,7 +369,7 @@ CGameMenuItemBitmapLS itemLoadGamePic(NULL, 3, 0, 0, 2518);
 CGameMenu menuMultiUserMaps;
 
 CGameMenuItemTitle itemNetStartUserMapTitle("USER MAP", 1, 160, 20, 2038);
-CGameMenuFileSelect menuMultiUserMap("", 3, 0, 0, 0, "./", "*.map", zUserMapName);
+CGameMenuFileSelect menuMultiUserMap("", 3, 0, 0, 0, USERMAP_START_DIRECTORY, "*.map", zUserMapName);
 
 CGameMenuItemMultiplayerTitle itemNetStartTitle("MULTIPLAYER", 1, 160, 20, 2038);
 CGameMenuItemZCycle itemNetStart1("GAME:", 3, 66, 60, 180, 0, 0, zNetGameTypes, 3, 0);
@@ -722,7 +728,12 @@ CGameMenuItemSlider itemOptionsSoundNumVoices("VOICES:", 3, 66, 120, 180, NumVoi
 #else
 CGameMenuItemSlider itemOptionsSoundNumVoices("VOICES:", 3, 66, 120, 180, NumVoices, 16, 255, 16, UpdateNumVoices, -1, -1, kMenuSliderValue);
 #endif
-CGameMenuItemZBool itemOptionsSoundCDToggle("REDBOOK AUDIO:", 3, 66, 130, 180, false, UpdateCDToggle, NULL, NULL);
+#ifdef __PSP__
+CGameMenuItemZBool itemOptionsSoundCDToggle("OGG TRACKS:",
+#else
+CGameMenuItemZBool itemOptionsSoundCDToggle("REDBOOK AUDIO:",
+#endif
+    3, 66, 130, 180, false, UpdateCDToggle, NULL, NULL);
 #ifdef EDUKE32
 CGameMenuItemZCycle itemOptionsSoundMusicDevice("MIDI DRIVER:", 3, 66, 140, 180, 0, UpdateMusicDevice, pzMusicDeviceStrings, ARRAY_SIZE(pzMusicDeviceStrings), 0);
 CGameMenuItemChain itemOptionsSoundSF2Bank("SF2 BANK", 3, 66, 150, 180, 0, &menuOptionsSoundSF2, 0, NULL, 0);
@@ -1481,19 +1492,13 @@ void SetupOptionsMenu(void)
 
     menuOptionsSound.Add(&itemOptionsSoundTitle, false);
     menuOptionsSound.Add(&itemOptionsSoundSoundToggle, true);
-#if !defined(__PSP__)
     menuOptionsSound.Add(&itemOptionsSoundMusicToggle, false);
-#endif
     menuOptionsSound.Add(&itemOptionsSound3DToggle, false);
     menuOptionsSound.Add(&itemOptionsSoundSoundVolume, false);
-#if !defined(__PSP__)
     menuOptionsSound.Add(&itemOptionsSoundMusicVolume, false);
-#endif
     menuOptionsSound.Add(&itemOptionsSoundSampleRate, false);
     menuOptionsSound.Add(&itemOptionsSoundNumVoices, false);
-#if !defined(__PSP__)
     menuOptionsSound.Add(&itemOptionsSoundCDToggle, false);
-#endif
 #ifdef EDUKE32
     menuOptionsSound.Add(&itemOptionsSoundMusicDevice, false);
     menuOptionsSound.Add(&itemOptionsSoundSF2Bank, false);
@@ -2205,13 +2210,6 @@ void UpdateSoundToggle(CGameMenuItemZBool *pItem)
 
 void UpdateMusicToggle(CGameMenuItemZBool *pItem)
 {
-#if defined(__PSP__)
-    // MIDI music has no PSP synthesiser yet. Keep stale configs and future
-    // menu wiring from reaching the uninitialised generic MIDI path.
-    MusicToggle = 0;
-    pItem->at20 = 0;
-    return;
-#endif
     MusicToggle = pItem->at20;
     if (!MusicToggle)
         sndStopSong();
@@ -2229,11 +2227,6 @@ void Update3DToggle(CGameMenuItemZBool *pItem)
 
 void UpdateCDToggle(CGameMenuItemZBool *pItem)
 {
-#if defined(__PSP__)
-    CDAudioToggle = 0;
-    pItem->at20 = 0;
-    return;
-#endif
     CDAudioToggle = pItem->at20;
     if (gGameStarted || gDemo.at1)
         levelTryPlayMusicOrNothing(gGameOptions.nEpisode, gGameOptions.nLevel);

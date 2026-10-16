@@ -2338,6 +2338,11 @@ void CGameMenuItemQAV::Draw(void)
         windowx1 = 0;
         windowy1 = 0;
         windowx2 = xdim-1;
+#ifdef __PSP__
+        // wa59: clip the right edge of the menu drip QAV at native size.
+        if (xdim == 480 && ydim == 272)
+            windowx2 = 419;
+#endif
         windowy2 = ydim-1;
 #else
         wx1 = windowxy1.x;

@@ -64,6 +64,8 @@ void DoFireFrame(void)
     }
     CellularFrame(FrameBuffer, 128, 132);
     char *pData = tileLoadTile(2342);
+    if (!pData)
+        ThrowError("Fire tile 2342 could not be loaded");
     char *pSource = FrameBuffer;
     int x = fireSize;
     do

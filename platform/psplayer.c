@@ -1,5 +1,6 @@
 // PSP interface layer for the JFBuild backport used by JFBlood.
-// MVP: native 480x272 indexed software renderer, no audio.
+// Native indexed software renderer and PSP input backend.
+// Strafe controls and analog dead zone contributed by wa59.
 
 #include <pspkernel.h>
 #include <pspctrl.h>
@@ -13,12 +14,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "build.h"
 #include "baselayer.h"
 #include "compat.h"
 #include "platform/psp_ge.h"
 #include "platform/psp_ge_world.h"
+#include "platform/psp_paths.h"
 
 // jfmact/keyboard.h needs internal typedefs not exposed to this C platform
 // layer.  These are the stable PC scan codes used by the Blood defaults.
@@ -26,23 +29,18 @@ enum {
     PSP_SC_ESCAPE = 0x01,
     PSP_SC_TAB = 0x0f,
     PSP_SC_W = 0x11,
-    PSP_SC_SEMI = 0x27,
-    PSP_SC_QUOTE = 0x28,
-    PSP_SC_S = 0x1f,
+    PSP_SC_RIGHT_BRACKET = 0x1b,
     PSP_SC_E = 0x12,
+    PSP_SC_A = 0x1e,
+    PSP_SC_D = 0x20,
+    PSP_SC_ENTER = 0x1c,
     PSP_SC_LEFTCTRL = 0x1d,
     PSP_SC_LEFTALT = 0x38,
     PSP_SC_SPACE = 0x39,
-    PSP_SC_CAPSLOCK = 0x3a,
     PSP_SC_X = 0x2d,
-
-
     PSP_SC_RIGHTCTRL = 0x9d,
-    PSP_SC_LEFTSHIFT = 0x2a,
-    PSP_SC_UP = 0xc8,
-    PSP_SC_DOWN = 0xd0,
-    PSP_SC_LEFT = 0xcb,
-    PSP_SC_RIGHT = 0xcd,
+    PSP_SC_SEMICOLON = 0x27,
+    PSP_SC_APOSTROPHE = 0x28,
 };
 
 extern int g_useCwd;
@@ -257,6 +255,9 @@ int initsystem(void)
     // The game data and configuration belong beside EBOOT.PBP.  This avoids
     // the desktop-oriented HOME/.config relocation in the shared game code.
     g_useCwd = 1;
+    // Keep custom maps beside the EBOOT, separate from the base game data.
+    // An existing folder is fine; the file picker can fall back if unwritable.
+    (void)mkdir(PSP_USERMAP_DIR, 0777);
 #if defined(PSP_RELEASE_BUILD)
     // A release must not open, create, or update a diagnostic file.
     psp_read_options();
@@ -571,37 +572,41 @@ static uint32_t psp_filter_joystick_buttons(uint32_t buttons)
     return 0;
 }
 
+#define PSP_STICK_DEADZONE 26 // 20% of the 128-step stick radius
+
+// Zero the dead zone and rescale the rest so full deflection is unchanged.
+static int psp_stick_axis(int v)
+{
+    int a = v < 0 ? -v : v;
+    if (a <= PSP_STICK_DEADZONE) return 0;
+    a = (a - PSP_STICK_DEADZONE) * 128 / (128 - PSP_STICK_DEADZONE);
+    return v < 0 ? -a : a;
+}
+
 static void psp_apply_keyboard_controls(uint32_t buttons)
 {
-    int const l1 = !!(buttons & PSP_CTRL_LTRIGGER);
-    int const l1Square = l1 && !!(buttons & PSP_CTRL_SQUARE);
-    int const l1Triangle = l1 && !!(buttons & PSP_CTRL_TRIANGLE);
     int up = !!(buttons & PSP_CTRL_UP);
     int down = !!(buttons & PSP_CTRL_DOWN);
     int left = !!(buttons & PSP_CTRL_LEFT);
     int right = !!(buttons & PSP_CTRL_RIGHT);
+    int const secondary = (buttons & (PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER | PSP_CTRL_CROSS)) ==
+        (PSP_CTRL_LTRIGGER | PSP_CTRL_RTRIGGER | PSP_CTRL_CROSS);
 
-    psp_set_key(PSP_SC_W, up);
-    psp_set_key(PSP_SC_UP, up);
-    psp_set_key(PSP_SC_S, down);
-    psp_set_key(PSP_SC_DOWN, down);
-    psp_set_key(PSP_SC_LEFT, left);
-    psp_set_key(PSP_SC_RIGHT, right);
-
-    // Cross jump, Circle crouch, Square use, Triangle next weapon,
-    // L+Triangle previous weapon, L/R secondary/primary fire, Select map,
-    // and Start menu.
-    psp_set_key(PSP_SC_SPACE, !!(buttons & PSP_CTRL_CROSS));
+    // L/R strafe left/right; face buttons shoot/use/jump/crouch; D-pad up/down next/use item, left/right previous/next weapon.
+    psp_set_key(PSP_SC_A, !!(buttons & PSP_CTRL_LTRIGGER));
+    psp_set_key(PSP_SC_D, !!(buttons & PSP_CTRL_RTRIGGER));
+    psp_set_key(PSP_SC_RIGHTCTRL, !!(buttons & PSP_CTRL_CROSS) && !secondary);
+    psp_set_key(PSP_SC_X, secondary);
+    psp_set_key(PSP_SC_E, !!(buttons & PSP_CTRL_SQUARE));
+    psp_set_key(PSP_SC_SPACE, !!(buttons & PSP_CTRL_TRIANGLE));
+    psp_set_key(PSP_SC_ENTER, down);
+    psp_set_key(PSP_SC_RIGHT_BRACKET, up);
+    psp_set_key(PSP_SC_SEMICOLON, left);
+    psp_set_key(PSP_SC_APOSTROPHE, right);
 
     psp_set_key(PSP_SC_LEFTCTRL, !!(buttons & PSP_CTRL_CIRCLE));
-    psp_set_key(PSP_SC_E, !!(buttons & PSP_CTRL_SQUARE) && !l1Square);
-    psp_set_key(PSP_SC_SEMI, l1Triangle);
-    psp_set_key(PSP_SC_X, l1 && !l1Square && !l1Triangle);
-    psp_set_key(PSP_SC_RIGHTCTRL, !!(buttons & PSP_CTRL_RTRIGGER));
     psp_set_key(PSP_SC_TAB, !!(buttons & PSP_CTRL_SELECT));
     psp_set_key(PSP_SC_ESCAPE, !!(buttons & PSP_CTRL_START));
-    psp_set_key(PSP_SC_CAPSLOCK, l1Square);
-    psp_set_key(PSP_SC_QUOTE, !!(buttons & PSP_CTRL_TRIANGLE) && !l1Triangle);
 }
 
 int handleevents(void)
@@ -621,9 +626,9 @@ int handleevents(void)
     psp_apply_keyboard_controls(pad.Buttons);
     joyb = buttons;
     // The PSP's single analogue nub controls turning. Keep movement at the
-    // expected full range while reducing horizontal turn sensitivity by 25%.
-    joyaxis[0] = ((int)pad.Lx - 128) * 192;
-    joyaxis[1] = ((int)pad.Ly - 128) * 256;
+    // expected full range while reducing horizontal turn sensitivity by 75%.
+    joyaxis[0] = psp_stick_axis((int)pad.Lx - 128) * 48;
+    joyaxis[1] = psp_stick_axis((int)pad.Ly - 128) * 256;
     // Do not consume HOME: firmware/PPSSPP owns it for the XMB system menu.
     sampletimer();
     return quitevent;

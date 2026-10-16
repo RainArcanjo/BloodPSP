@@ -1166,7 +1166,7 @@ void PreloadCache(void)
 // map. That is appropriate on Vita/desktop, but on PSP it can lock the whole
 // 8 MiB tile cache before the first frame is allowed to run. Keep a small,
 // deterministic working set instead. Remaining tiles use the normal cache.
-static void PreloadCachePSP(void)
+void PreloadCachePSP(void)
 {
     static const uint32_t kPreloadBudget = 3u * 1024u * 1024u;
     char tempbuf[128];
@@ -3862,6 +3862,14 @@ int sndTryPlaySpecialMusic(int nMusic)
 #ifndef __AMIGA__
     int nEpisode = nMusic/kMaxLevels;
     int nLevel = nMusic%kMaxLevels;
+#ifdef __PSP__
+    // Track 02 supplies the recorded intro/menu music in OGG mode.
+    if (nMusic == MUS_INTRO && CDAudioToggle && !sndPlaySong("blood02", true))
+    {
+        strncpy(gGameOptions.zLevelSong, "blood02", BMAX_PATH);
+        return 0;
+    }
+#endif
     if (!sndPlaySong(gEpisodeInfo[nEpisode].levelsInfo[nLevel].Song, true))
     {
         strncpy(gGameOptions.zLevelSong, gEpisodeInfo[nEpisode].levelsInfo[nLevel].Song, BMAX_PATH);

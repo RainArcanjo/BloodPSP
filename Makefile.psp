@@ -64,10 +64,25 @@ SMACKEROBJ :=
 
 # The upstream rule invokes a nested make without forwarding the PSP tool
 # names, which makes it accidentally discover host SDL. The PSP build enables
-# its small native PCM driver; MIDI music remains deliberately unsupported.
-$(AUDIOLIBROOT)/$(JFAUDIOLIB):
-	$(MAKE) -C $(AUDIOLIBROOT) $(JFAUDIOLIB) RELEASE=$(RELEASE) CC=$(CC) AR=$(AR) CFLAGS="-std=gnu17 $(PSP_BUILD_DEFINES)" JFAUDIOLIB_HAVE_PSP=1 JFAUDIOLIB_HAVE_SDL=0 JFAUDIOLIB_HAVE_ALSA=0 JFAUDIOLIB_HAVE_VORBIS=0
+# wa59 PCM/MIDI backend through the native PSP driver slot. The tracked
+# patch keeps this reproducible with the pinned JFAudioLib submodule.
+.PHONY: psp-audiolib-prepare
+psp-audiolib-prepare:
+	@if git -C $(AUDIOLIBROOT) apply --ignore-space-change --check ../patches/jfaudiolib-psp-midi.patch 2>/dev/null; then \
+		git -C $(AUDIOLIBROOT) apply --ignore-space-change ../patches/jfaudiolib-psp-midi.patch; \
+	else \
+		git -C $(AUDIOLIBROOT) apply --ignore-space-change --reverse --check ../patches/jfaudiolib-psp-midi.patch; \
+	fi
+
+$(AUDIOLIBROOT)/$(JFAUDIOLIB): psp-audiolib-prepare
+	rm -f $@
+	$(MAKE) -B -C $(AUDIOLIBROOT) $(JFAUDIOLIB) RELEASE=$(RELEASE) CC=$(CC) AR=$(AR) CFLAGS="-std=gnu17 -O2 -fomit-frame-pointer $(PSP_BUILD_DEFINES)" JFAUDIOLIB_PSP_DRIVER=../platform/psp_audio.c JFAUDIOLIB_HAVE_PSP=1 JFAUDIOLIB_HAVE_SDL=0 JFAUDIOLIB_HAVE_ALSA=0 JFAUDIOLIB_HAVE_FLUIDSYNTH=0 JFAUDIOLIB_HAVE_VORBIS=0
 	$(RANLIB) $@
+
+platform/psp_audio.o: platform/tsf.h platform/psp_music.h
+platform/psplayer.o src/menu.o: platform/psp_paths.h
+platform/psp_music.o: platform/psp_music.h platform/psp_ogg.h
+platform/psp_ogg.o: platform/psp_ogg.h platform/stb_vorbis.c
 
 .PHONY: blood-objects
 blood-objects: $(GAMEOBJS) $(JMACTOBJ) $(AUDIOLIBROOT)/$(JFAUDIOLIB)
@@ -75,7 +90,7 @@ blood-objects: $(GAMEOBJS) $(JMACTOBJ) $(AUDIOLIBROOT)/$(JFAUDIOLIB)
 JFBLOOD_TARGET := jfbloodpsp
 JFBLOOD_ELF := $(JFBLOOD_TARGET).elf
 JFBLOOD_PRX := $(JFBLOOD_TARGET).prx
-JFBLOOD_OBJS := $(GAMEOBJS) platform/psplayer.o platform/psp_ge.o platform/psp_ge_world.o platform/psp_posix_stubs.o
+JFBLOOD_OBJS := $(GAMEOBJS) platform/psplayer.o platform/psp_ge.o platform/psp_ge_world.o platform/psp_posix_stubs.o platform/psp_music.o platform/psp_ogg.o
 JFBLOOD_PERF_OBJ := platform/psp_perf.o
 JFBLOOD_ENGINE := $(EROOT)/src/libengine.a
 

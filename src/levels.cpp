@@ -409,6 +409,14 @@ bool levelTryPlayMusic(int nEpisode, int nLevel, bool bSetLevelSong)
     else
         strncpy(buffer, gEpisodeInfo[nEpisode].levelsInfo[nLevel].Song, BMAX_PATH);
     bool bReturn = !!sndPlaySong(buffer, true);
+#ifdef __PSP__
+    // Missing recorded tracks can fall back to the level's original MIDI.
+    if (bReturn && CDAudioToggle && gEpisodeInfo[nEpisode].levelsInfo[nLevel].SongId > 0)
+    {
+        snprintf(buffer, BMAX_PATH, "%s", gEpisodeInfo[nEpisode].levelsInfo[nLevel].Song);
+        bReturn = !!sndPlaySong(buffer, true);
+    }
+#endif
     if (!bReturn || bSetLevelSong)
         strncpy(gGameOptions.zLevelSong, buffer, BMAX_PATH);
     return bReturn;

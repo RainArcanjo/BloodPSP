@@ -1,0 +1,95 @@
+diff --git a/Makefile b/Makefile
+index 8df50bc..6e1ab63 100644
+--- a/Makefile
++++ b/Makefile
+@@ -27,7 +27,7 @@ SOURCES=src/drivers.c \
+         src/asssys.c
+ ifeq (1,$(JFAUDIOLIB_HAVE_PSP))
+  CPPFLAGS+= -DHAVE_PSP_AUDIO -I$(PSPSDK)/include -I..
+- SOURCES+= src/driver_psp.c
++ SOURCES+= $(if $(JFAUDIOLIB_PSP_DRIVER),$(JFAUDIOLIB_PSP_DRIVER),src/driver_psp.c)
+ endif
+ 
+ include Makefile.shared
+diff --git a/src/asssys.c b/src/asssys.c
+index 2e2b6f8..0b53f42 100644
+--- a/src/asssys.c
++++ b/src/asssys.c
+@@ -52,6 +52,8 @@ void ASS_Sleep(int msec)
+ {
+ #ifdef _WIN32
+ 	Sleep(msec);
++#elif defined(__PSP__)
++	usleep(msec * 1000);
+ #elif defined(__AROS__) || defined(__AMIGA__)
+ 	//usleep(msec * 1000);
+ 	ULONG ticks = msec / 20;
+diff --git a/src/driver_psp.h b/src/driver_psp.h
+index fd73533..6acc281 100644
+--- a/src/driver_psp.h
++++ b/src/driver_psp.h
+@@ -9,4 +9,11 @@ int PSPDrv_PCM_BeginPlayback(char *BufferStart, int BufferSize,
+     int NumDivisions, void (*CallBackFunc)(void));
+ void PSPDrv_PCM_StopPlayback(void);
+ void PSPDrv_PCM_Lock(void);
+-void PSPDrv_PCM_Unlock(void);
+\ No newline at end of file
++void PSPDrv_PCM_Unlock(void);/* MIDI synthesis contributed by wa59. */
++int PSPDrv_MIDI_Init(midifuncs *funcs, const char *params);
++void PSPDrv_MIDI_Shutdown(void);
++int PSPDrv_MIDI_StartPlayback(void (*service)(void));
++void PSPDrv_MIDI_HaltPlayback(void);
++void PSPDrv_MIDI_SetTempo(int tempo, int division);
++void PSPDrv_MIDI_Lock(void);
++void PSPDrv_MIDI_Unlock(void);
+diff --git a/src/drivers.c b/src/drivers.c
+index 534294c..b6f0deb 100644
+--- a/src/drivers.c
++++ b/src/drivers.c
+@@ -369,7 +369,13 @@ static struct {
+         PSPDrv_PCM_Lock,
+         PSPDrv_PCM_Unlock,
+         UNSUPPORTED_CD,
+-        UNSUPPORTED_MIDI,
++        PSPDrv_MIDI_Init,
++        PSPDrv_MIDI_Shutdown,
++        PSPDrv_MIDI_StartPlayback,
++        PSPDrv_MIDI_HaltPlayback,
++        PSPDrv_MIDI_SetTempo,
++        PSPDrv_MIDI_Lock,
++        PSPDrv_MIDI_Unlock,
+     #else
+         UNSUPPORTED_COMPLETELY,
+     #endif
+diff --git a/src/midi.c b/src/midi.c
+index 082a53c..6158bf5 100644
+--- a/src/midi.c
++++ b/src/midi.c
+@@ -1341,6 +1341,7 @@ int MIDI_PlaySong
+    int    format;
+    int    headersize;
+    int    tracklength;
++   unsigned int signature;
+    track *CurrentTrack;
+    unsigned char *ptr;
+ 
+@@ -1356,7 +1357,8 @@ int MIDI_PlaySong
+       return( MIDI_NullMidiModule );
+       }
+ 
+-   if ( *( unsigned int * )song != LITTLE32(MIDI_HEADER_SIGNATURE) )
++   memcpy( &signature, song, sizeof(signature) );
++   if ( signature != LITTLE32(MIDI_HEADER_SIGNATURE) )
+       {
+       return( MIDI_InvalidMidiFile );
+       }
+@@ -1397,7 +1399,8 @@ int MIDI_PlaySong
+    numtracks    = _MIDI_NumTracks;
+    while( numtracks-- )
+       {
+-      if ( *( unsigned int * )ptr != LITTLE32(MIDI_TRACK_SIGNATURE) )
++      memcpy( &signature, ptr, sizeof(signature) );
++      if ( signature != LITTLE32(MIDI_TRACK_SIGNATURE) )
+          {
+          free( _MIDI_TrackPtr );
+ 

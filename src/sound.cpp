@@ -35,6 +35,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "resource.h"
 #include "sound.h"
 #include "renderlayer.h"
+#ifdef __PSP__
+#include "../platform/psp_music.h"
+#endif
 
 
 int32_t SoundToggle;
@@ -121,21 +124,30 @@ static int32_t S_OpenAudio(const char *fn, char searchfirst, uint8_t const ismus
 
 int sndPlaySong(const char *songName, bool bLoop)
 {
-#if defined(__PSP__)
-    // Effects use the native PCM backend, but Blood's music is MIDI and no
-    // PSP synthesiser is installed yet. Do not touch the MIDI/CD APIs.
-    UNREFERENCED_PARAMETER(songName);
-    UNREFERENCED_PARAMETER(bLoop);
-    MusicToggle = 0;
-    return 0;
-#endif
     if (!MusicToggle)
         return 0;
     if (!songName || strlen(songName) == 0)
         return 1;
 
+#ifdef __PSP__
+    // Prefer streamed OGG replacements without allocating the whole track.
+    if (psp_music_play(songName, bLoop, MixRate) == 0)
+    {
+        if (bWaveMusic && nWaveMusicHandle >= 0)
+            FX_StopSound(nWaveMusicHandle);
+        bWaveMusic = false;
+        nWaveMusicHandle = -1;
+        MUSIC_StopSong();
+        CD_Stop();
+        ALIGNED_FREE_AND_NULL(pSongPtr);
+        nSongSize = 0;
+        psp_music_set_volume(MusicVolume);
+        return 0;
+    }
+    psp_music_stop();
+#endif
     int32_t fp = S_OpenAudio(songName, 0, 1);
-#ifndef EDUKE32
+#if !defined(EDUKE32) && !defined(__PSP__)
     if (fp < 0 && CDAudioToggle)
     {
         int songId = -1;
@@ -286,17 +298,19 @@ int sndPlaySong(const char *songName, bool bLoop)
 
 bool sndIsSongPlaying(void)
 {
+#ifdef __PSP__
+    return psp_music_is_playing() || MUSIC_SongPlaying();
+#else
     //return MUSIC_SongPlaying();
     return false;
+#endif
 }
 
 void sndFadeSong(int nTime)
 {
-#if defined(__PSP__)
-    // PCM effects are active, but MIDI music is intentionally unavailable.
-    UNREFERENCED_PARAMETER(nTime);
-    return;
-#else
+#ifdef __PSP__
+    psp_music_stop();
+#endif
     UNREFERENCED_PARAMETER(nTime);
     // NUKE-TODO:
     //if (MusicDevice == -1)
@@ -315,14 +329,13 @@ void sndFadeSong(int nTime)
 #ifndef EDUKE32
     CD_Stop();
 #endif
-#endif
 }
 
 void sndSetMusicVolume(int nVolume)
 {
     MusicVolume = nVolume;
-#if defined(__PSP__)
-    return;
+#ifdef __PSP__
+    psp_music_set_volume(nVolume);
 #endif
     if (bWaveMusic && nWaveMusicHandle >= 0)
         FX_SetPan(nWaveMusicHandle, nVolume, nVolume, nVolume);
@@ -340,18 +353,15 @@ void sndSetFXVolume(int nVolume)
 
 void sndStopSong(void)
 {
+#ifdef __PSP__
+    psp_music_stop();
+#endif
     if (bWaveMusic && nWaveMusicHandle >= 0)
     {
         FX_StopSound(nWaveMusicHandle);
         nWaveMusicHandle = -1;
         bWaveMusic = false;
     }
-
-#if defined(__PSP__)
-    ALIGNED_FREE_AND_NULL(pSongPtr);
-    nSongSize = 0;
-    return;
-#endif
 
     MUSIC_StopSong();
 #ifndef EDUKE32
@@ -524,10 +534,6 @@ void sndStartWavDisk(const char *pzFile, int nVolume, int nChannel)
 
 void sndKillAllSounds(void)
 {
-#ifdef __PSP__
-    memset(Channel, 0, sizeof(Channel));
-    return;
-#endif
     for (int i = 0; i < kChannelMax; i++)
     {
         SAMPLE2D *pChannel = &Channel[i];
@@ -704,10 +710,11 @@ void sndTerm(void)
         return;
     sndActive = false;
     sndStopSong();
-    DeinitSoundDevice();
-#if !defined(__PSP__)
-    DeinitMusicDevice();
+#ifdef __PSP__
+    psp_music_shutdown();
 #endif
+    DeinitSoundDevice();
+    DeinitMusicDevice();
 }
 extern char *pUserSoundRFF;
 void sndInit(void)
@@ -717,17 +724,8 @@ void sndInit(void)
     nSongSize = 0;
     bWaveMusic = false;
     nWaveMusicHandle = -1;
-#ifdef __PSP__
-    // The native PSP driver supplies PCM effects through MultiVoc. Blood's
-    // original music path is MIDI and has no PSP synthesiser yet, so do not
-    // initialise the generic music/CD backends in this build.
-    MusicToggle = 0;
-    MusicDevice = -1;
-#endif
     InitSoundDevice();
-#if !defined(__PSP__)
     InitMusicDevice();
-#endif
     sndActive = true;
     sndLoadGMTimbre();
 }

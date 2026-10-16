@@ -126,9 +126,15 @@ void LoadSave::LoadGame(char *pzFile)
     hLFile = -1;
     if (!gGameStarted)
         scrLoadPLUs();
+    // wa59: restore local player pointers before prediction/cache setup.
+    gMe = gView = &gPlayer[myconnectindex];
     InitSectorFX();
     viewInitializePrediction();
+#ifdef __PSP__
+    PreloadCachePSP();
+#else
     PreloadCache();
+#endif
     if (!bVanilla && !gMe->packSlots[1].isActive) // if diving suit is not active, turn off reverb sound effect
         sfxSetReverb(0);
     ambInit();

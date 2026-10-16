@@ -30,6 +30,10 @@ Current limits:
 
 Contributions from **wa59** are integrated for testing. Resolution remains selectable under **Options > Display Setup > Video Mode** and in `nblood.cfg`; the supplied configuration starts at 480×272. Save loading now restores local player pointers and uses the bounded PSP preload. These changes still need PSP/PPSSPP validation.
 
+## Windows launcher
+
+The desktop launcher in [launcher/](launcher/README.md) downloads a GitHub release or uses a local EBOOT, prepares `PSP/GAME/BloodPSP`, and visually edits `nblood.cfg` and PSP controls. Build it with `launcher/Build.cmd`; the portable Windows package includes its own runtime.
+
 ## Install
 
 Only the Steam release of *One Unit Whole Blood* has been tested. Copy these files from a legal Steam installation into `ms0:/PSP/GAME/BloodPSP/`, alongside `EBOOT.PBP` and `nblood.cfg`:

@@ -30,6 +30,10 @@ Limitações atuais:
 
 As contribuições de **wa59** estão integradas para teste. A resolução continua selecionável no menu **Options > Display Setup > Video Mode** e em `nblood.cfg`; a configuração distribuída começa em 480×272. A correção de saves restaura os ponteiros do jogador e usa o preload limitado do PSP ao carregar. Essas mudanças precisam de validação no PSP/PPSSPP.
 
+## Launcher para Windows
+
+O aplicativo em [launcher/](launcher/README.md) baixa uma release do GitHub ou usa uma EBOOT local, monta `PSP/GAME/BloodPSP` e oferece edição visual do `nblood.cfg` e dos controles do PSP. Compile com `launcher/Build.cmd`; o pacote portátil para Windows inclui o próprio runtime.
+
 ## Instalação
 
 A única versão testada foi *One Unit Whole Blood* da Steam. Copie estes arquivos de uma instalação Steam legal para `ms0:/PSP/GAME/BloodPSP/`, ao lado de `EBOOT.PBP` e `nblood.cfg`:

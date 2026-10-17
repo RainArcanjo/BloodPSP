@@ -57,6 +57,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 #define __SETUP__   // JBF 20031211
 #include "_functio.h"
+#ifdef __PSP__
+#include "platform/psp_controls.h"
+#endif
 
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)
 extern "C" int psp_perf_hud;
@@ -737,19 +740,19 @@ void CONFIG_SetupJoystick(void)
         Bsprintf(str,"JoystickAnalogAxes%d",i);
         temp[0] = 0;
         if (!SCRIPT_GetString(scripthandle, "Controls", str,temp))
-            if (CONFIG_AnalogNameToNum(temp) != -1 || (!temp[0] && CONFIG_FunctionNameToNum(temp) != -1))
+            if (!temp[0] || CONFIG_AnalogNameToNum(temp) != -1)
                 JoystickAnalogueAxes[i] = CONFIG_AnalogNameToNum(temp);
 
         Bsprintf(str,"JoystickDigitalAxes%d_0",i);
         temp[0] = 0;
         if (!SCRIPT_GetString(scripthandle, "Controls", str,temp))
-            if (CONFIG_FunctionNameToNum(temp) != -1 || (!temp[0] && CONFIG_FunctionNameToNum(temp) != -1))
+            if (!temp[0] || CONFIG_FunctionNameToNum(temp) != -1)
                 JoystickDigitalFunctions[i][0] = CONFIG_FunctionNameToNum(temp);
 
         Bsprintf(str,"JoystickDigitalAxes%d_1",i);
         temp[0] = 0;
         if (!SCRIPT_GetString(scripthandle, "Controls", str,temp))
-            if (CONFIG_FunctionNameToNum(temp) != -1 || (!temp[0] && CONFIG_FunctionNameToNum(temp) != -1))
+            if (!temp[0] || CONFIG_FunctionNameToNum(temp) != -1)
                 JoystickDigitalFunctions[i][1] = CONFIG_FunctionNameToNum(temp);
 
         Bsprintf(str,"JoystickAnalogScale%d",i);
@@ -828,6 +831,36 @@ void CONFIG_SetJoystickDefaults(int style)
     }
 }
 
+#ifdef __PSP__
+static void CONFIG_ReadPspControls(void)
+{
+    int32_t version = 0, count = -1;
+    psp_controls_reset();
+    SCRIPT_GetNumber(scripthandle, "PSP Controls", "Version", &version);
+    if (version != 1) return; /* Existing CFGs retain their keyboard bindings. */
+    SCRIPT_GetNumber(scripthandle, "PSP Controls", "Count", &count);
+    if (count < 0 || count > PSP_CONTROLS_MAX_BINDINGS) return;
+    psp_controls_begin();
+    for (int i = 0; i < count; ++i)
+    {
+        char key[32], buttons[128] = {}, action[80] = {};
+        Bsprintf(key, "Mapping%d", i);
+        SCRIPT_GetDoubleString(scripthandle, "PSP Controls", key,
+                              buttons, action, sizeof(buttons), sizeof(action));
+        int function = CONFIG_FunctionNameToNum(action);
+        if (function < 0 || function >= NUMGAMEFUNCTIONS ||
+            !psp_controls_add(psp_controls_parse_buttons(buttons), function))
+        {
+            psp_controls_reset();
+            initprintf("Invalid %s mapping %d; using keyboard controls.\n", psp_controls_capability, i);
+            return;
+        }
+    }
+    for (int i = 0; i < NUMGAMEFUNCTIONS; ++i)
+        CONTROL_MapKey(i, psp_controls_scan(i), 0x7f);
+}
+#endif
+
 void CONFIG_ReadKeys( void )
    {
    int32 i;
@@ -878,6 +911,9 @@ void CONFIG_ReadKeys( void )
          else
             CONTROL_MapKey( i, KeyboardKeys[i][0], KeyboardKeys[i][1] );
       }
+#ifdef __PSP__
+   CONFIG_ReadPspControls();
+#endif
    }
 #endif
 

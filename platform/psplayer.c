@@ -22,6 +22,7 @@
 #include "platform/psp_ge.h"
 #include "platform/psp_ge_world.h"
 #include "platform/psp_paths.h"
+#include "platform/psp_controls.h"
 
 // jfmact/keyboard.h needs internal typedefs not exposed to this C platform
 // layer.  These are the stable PC scan codes used by the Blood defaults.
@@ -607,6 +608,13 @@ static void psp_apply_keyboard_controls(uint32_t buttons)
     psp_set_key(PSP_SC_LEFTCTRL, !!(buttons & PSP_CTRL_CIRCLE));
     psp_set_key(PSP_SC_TAB, !!(buttons & PSP_CTRL_SELECT));
     psp_set_key(PSP_SC_ESCAPE, !!(buttons & PSP_CTRL_START));
+    if (psp_controls_enabled())
+    {
+        unsigned char actions[PSP_CONTROLS_MAX_ACTIONS];
+        psp_controls_evaluate(buttons, actions);
+        for (int i = 0; i < PSP_CONTROLS_MAX_ACTIONS; ++i)
+            psp_set_key(psp_controls_scan(i), actions[i]);
+    }
 }
 
 int handleevents(void)

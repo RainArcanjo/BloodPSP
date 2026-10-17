@@ -19,6 +19,7 @@ import tempfile
 from .config import ConfigDocument, fingerprint
 from .releases import PbpInfo, validate_pbp
 from . import __version__
+from .mappings import has_native_mappings, read_mappings
 
 REQUIRED = ("BLOOD.INI", "BLOOD.RFF", "GUI.RFF", "SOUNDS.RFF", "SURFACE.DAT", "TABLES.DAT",
             *(f"TILES{i:03}.ART" for i in range(18)), "VOXEL.DAT")
@@ -123,7 +124,11 @@ def install(plan: InstallPlan, progress: Callable[[int, str], None], cancelled: 
     if info.sha256 != plan.eboot.sha256:
         raise InstallError("The EBOOT changed after selection. Select it again.")
     if plan.config is not None:
-        ConfigDocument(plan.config)
+        document = ConfigDocument(plan.config)
+        if has_native_mappings(document):
+            read_mappings(document, info.scheme)
+            if not info.native_controls:
+                raise InstallError("This EBOOT cannot read custom mappings. Select the updated EBOOT-controls.PBP.")
     target = plan.target.absolute()
     if target.exists() and not target.is_dir():
         raise InstallError("The output must be a folder.")

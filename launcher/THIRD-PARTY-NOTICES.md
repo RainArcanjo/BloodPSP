@@ -1,7 +1,10 @@
 # Third-party notices
 
 The launcher's original source is MIT licensed. Existing BloodPSP game code is
-not included in the executable; downloaded EBOOTs retain their own licenses.
+not included in the launcher executable. The separate EBOOT retains the game's
+license and credits, supplied as `BloodPSP-LICENSE.txt` and `BloodPSP-CREDITS.md`
+in this folder. Corresponding source and build instructions are available at
+https://github.com/RainArcanjo/BloodPSP and in the release source archive.
 Default configuration files come from BloodPSP and retain the project's terms.
 
 ## Qt / PySide6 / Shiboken
@@ -29,6 +32,18 @@ The frozen application includes the CPython runtime and standard library,
 distributed under the Python Software Foundation license and component terms.
 The build includes the installed Python's `LICENSE.txt` in the license folder.
 Sources and notices: <https://www.python.org/downloads/source/>.
+
+## pygame-ce / SDL
+
+Controller capture uses pygame-ce 2.5.8 (LGPL 2.1) with SDL 2.32.10 and its
+controller mappings. pygame-ce and SDL remain separate, replaceable libraries
+inside the portable package. Their license notices, including notices for
+libraries included in the pygame wheel, are supplied under
+`_internal/resources/licenses/pygame-ce/`.
+
+- pygame-ce source: <https://github.com/pygame-community/pygame-ce/tree/2.5.8>
+- SDL source: <https://github.com/libsdl-org/SDL/tree/release-2.32.10>
+- Controller API: <https://pyga.me/docs/ref/sdl2_controller.html>
 
 ## PyInstaller
 

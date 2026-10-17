@@ -72,10 +72,9 @@ void ctrlInit(void)
 
 #ifdef __PSP__
     // Desktop-generated configs normally contain UseJoystick=0.  PSP has no
-    // keyboard, so always activate the handheld defaults after config load.
+    // keyboard, so enable its analog device without replacing loaded mappings.
     gSetup.usejoystick = 1;
     gSetup.usemouse = 0;
-    CONFIG_SetJoystickDefaults(0);
 #endif
     CONTROL_JoystickEnabled = (gSetup.usejoystick && CONTROL_JoyPresent);
 #if defined(__PSP__) && defined(PSP_DIAGNOSTIC_BUILD)

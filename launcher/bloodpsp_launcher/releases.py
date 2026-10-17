@@ -16,7 +16,7 @@ import zipfile
 from .config import atomic_write
 
 REPOSITORY = "RainArcanjo/BloodPSP"
-USER_AGENT = "BloodPSP-Launcher/0.2.0"
+USER_AGENT = "BloodPSP-Launcher/0.4.0"
 MAX_DOWNLOAD = 128 * 1024 * 1024
 KNOWN_LEGACY = {"5162eef05d7df54a639ce73f596ec3c6171aac3f86d66a71ea8b67d11a5320ae"}
 
@@ -32,6 +32,7 @@ class PbpInfo:
     sha256: str
     scheme: str
     ogg: bool
+    native_controls: bool = False
 
 
 def validate_pbp(path: Path) -> PbpInfo:
@@ -50,7 +51,7 @@ def validate_pbp(path: Path) -> PbpInfo:
     ogg = b"bloodogg\0" in data and b"music/\0" in data
     has_wa59_audio = b"SOUNDFONT.SF2\0" in data
     scheme = "current" if digest not in KNOWN_LEGACY and (ogg or has_wa59_audio) else "legacy"
-    return PbpInfo(path.resolve(), size, digest, scheme, ogg)
+    return PbpInfo(path.resolve(), size, digest, scheme, ogg, b"BloodPSP.Controls.v1\0" in data)
 
 
 def get_latest(repository: str = REPOSITORY) -> dict:

@@ -20,12 +20,15 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .config import ConfigDocument, ConfigError, fingerprint, quote, tokens
-from .controls import SCHEMES, SCHEME_LABELS, ACTION_LABELS, read_bindings, bind_button, actions, reset_bindings
+from .controls import SCHEMES, SCHEME_LABELS, ACTION_LABELS
 from .install import scan_game, game_destination, InstallPlan, install
 from .releases import REPOSITORY, get_latest, download_asset, validate_pbp, PbpInfo
 from .resources import default_document, resource
 from .schema import VIDEO, AUDIO, GAME, ALL_FIELDS, BOOLEAN_FIELDS, DESCRIPTIONS
-from .widgets import icon, label, ControllerCanvas, ValueDelegate, button_label
+from .widgets import icon, label, ValueDelegate
+from .controls_editor import ControlsEditor
+from .profiles import ProfileStore
+from .mappings import has_native_mappings, read_mappings
 
 
 class Worker(QObject):
@@ -57,6 +60,7 @@ class MainWindow(QMainWindow):
         appdata = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
         self.cache = appdata / "downloads"
         self.log_path = appdata / "launcher.log"
+        self.profile_store = ProfileStore(Path(settings_path).parent / "profiles.json" if settings_path else appdata / "profiles.json")
         self.doc = default_document()
         self.original = self.doc.to_bytes()
         self.config_path: Path | None = None
@@ -74,7 +78,7 @@ class MainWindow(QMainWindow):
         self.control_combos = {}
         self.setWindowTitle("BloodPSP Launcher")
         self.setWindowIcon(icon("blood", size=128))
-        self.resize(1040, 820)
+        self.resize(1080, 860)
         self.setMinimumSize(900, 680)
         self._build_actions()
         self._build_shell()
@@ -93,11 +97,18 @@ class MainWindow(QMainWindow):
         self.update_destination()
         self.scan_source()
         remembered = str(self.settings.value("eboot", ""))
-        if remembered and Path(remembered).is_file():
+        bundled = Path(sys.executable).parent / "EBOOT.PBP" if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent / "EBOOT.PBP"
+        for candidate in (Path(remembered) if remembered else None, bundled):
+            if candidate is None or not candidate.is_file():
+                continue
             try:
-                self.accept_eboot(validate_pbp(Path(remembered)))
+                self.accept_eboot(validate_pbp(candidate))
+                break
             except Exception:
                 pass
+        remembered_cfg = str(self.settings.value("config", ""))
+        if remembered_cfg and Path(remembered_cfg).is_file():
+            self.load_config(Path(remembered_cfg))
 
     @property
     def dirty(self):
@@ -150,6 +161,7 @@ class MainWindow(QMainWindow):
         header.addStretch()
         cfg = QVBoxLayout()
         self.cfg_status = label("Default configuration", "Muted")
+        self.cfg_status.setMaximumWidth(480)
         cfg.addWidget(self.cfg_status)
         buttons = QHBoxLayout()
         open_button = QPushButton("Open CFG…")
@@ -267,7 +279,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(group)
         row = QHBoxLayout()
         row.addStretch()
-        self.install_button = QPushButton("Build PSP folder")
+        self.build_result = label("", "BuildResult")
+        row.addWidget(self.build_result)
+        self.install_button = QPushButton("BUILD PSP FOLDER")
         self.install_button.setObjectName("Primary")
         self.install_button.clicked.connect(self.prepare_install)
         row.addWidget(self.install_button)
@@ -276,54 +290,16 @@ class MainWindow(QMainWindow):
 
     def _build_controls_page(self):
         layout = self.page("Controls")
-        row = QHBoxLayout()
-        row.addWidget(label("Control scheme"))
-        self.scheme_combo = QComboBox()
-        for key, text in SCHEME_LABELS.items():
-            self.scheme_combo.addItem(text, key)
-        self.scheme_combo.setToolTip("The EBOOT determines the available scheme. Detected automatically when you select a known build.")
-        self.scheme_combo.currentIndexChanged.connect(self.scheme_changed)
-        row.addWidget(self.scheme_combo)
-        row.addStretch()
-        reset = QPushButton("Restore defaults")
-        reset.clicked.connect(self.reset_controls)
-        row.addWidget(reset)
-        layout.addLayout(row)
-        self.controller = ControllerCanvas()
-        self.controller.selected.connect(self.select_button)
-        layout.addWidget(self.controller)
-        self.controls_group = QGroupBox("Button mapping")
-        self.bindings_layout = QGridLayout(self.controls_group)
-        self.bindings_layout.setHorizontalSpacing(14)
-        self.bindings_layout.setVerticalSpacing(4)
-        layout.addWidget(self.controls_group)
-        self.controls_hint = label("", "Muted", True)
-        self.controls_hint.hide()
-        layout.addWidget(self.controls_hint)
-        group = QGroupBox("Analog stick")
-        form = QFormLayout(group)
-        form.setSpacing(6)
-        self.axis_combos = []
-        self.axis_scales = []
-        for axis, name in enumerate(("Horizontal", "Vertical")):
-            row = QHBoxLayout()
-            combo = QComboBox()
-            for title, value in (("Turn", "analog_turning"), ("Move", "analog_moving"), ("Strafe", "analog_strafing"), ("Disabled", "")):
-                combo.addItem(title, value)
-            combo.currentIndexChanged.connect(lambda index, axis=axis, combo=combo: self.set_value("Controls", f"JoystickAnalogAxes{axis}", quote(combo.currentData() or "")))
-            scale = QSpinBox()
-            scale.setRange(-131072, 131072)
-            scale.setSingleStep(4096)
-            scale.setToolTip("65536 is the default sensitivity. Negative values invert the axis.")
-            scale.valueChanged.connect(lambda value, axis=axis: self.set_value("Controls", f"JoystickAnalogScale{axis}", value))
-            row.addWidget(combo, 1)
-            row.addWidget(label("Sensitivity"))
-            row.addWidget(scale)
-            self.axis_combos.append(combo)
-            self.axis_scales.append(scale)
-            form.addRow(name, row)
-        layout.addWidget(group)
-        layout.addStretch()
+        self.controls_editor = ControlsEditor(self.profile_store)
+        self.controls_editor.edit_requested.connect(self.mutate)
+        self.controls_editor.apply_requested.connect(self.apply_controls)
+        self.controls_editor.scheme_selected.connect(self.select_scheme)
+        self.controls_editor.preset_saved.connect(lambda name: self.statusBar().showMessage("Preset saved: " + name))
+        self.scheme_combo = self.controls_editor.scheme_combo
+        self.controller = self.controls_editor.controller
+        self.axis_combos = self.controls_editor.axis_combos
+        self.axis_scales = self.controls_editor.axis_scales
+        layout.addWidget(self.controls_editor, 1)
 
     def add_fields(self, layout, title, fields):
         group = QGroupBox(title)
@@ -426,25 +402,12 @@ class MainWindow(QMainWindow):
 
     def _build_about_page(self):
         layout = self.page("About")
-        group = QGroupBox("BloodPSP Launcher " + __version__)
-        box = QVBoxLayout(group)
-        box.setSpacing(12)
-        for text in (
-            "PSP installation and NBLOOD.CFG editor.",
-            "BloodPSP: Rain and contributors. PSP controls, music, saves and resolution improvements: wa59.",
-            "PSP button icons: VictorPines / Wikimedia Commons, CC BY-SA 4.0. Logos and PSP artwork supplied with the project.",
-            "Interface reference: Sandstone PS2RC. Built with Qt for Python.",
-        ):
-            box.addWidget(label(text, wrap=True))
-        layout.addWidget(group)
+        layout.addWidget(label("BloodPSP Launcher " + __version__))
         row = QHBoxLayout()
-        for title, url in (("BloodPSP", "https://github.com/" + REPOSITORY),
-                           ("Sandstone PS2RC", "https://github.com/SandstoneDev/PS2RC/"),
-                           ("Button icon credits", "https://commons.wikimedia.org/wiki/Category:PlayStation_controller_buttons")):
-            button = QPushButton(title)
-            button.clicked.connect(lambda checked=False, url=url: QDesktopServices.openUrl(QUrl(url)))
-            row.addWidget(button)
-        notices = QPushButton("Third-party notices")
+        project = QPushButton("GitHub")
+        project.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/" + REPOSITORY)))
+        row.addWidget(project)
+        notices = QPushButton("Credits and licenses")
         notices.clicked.connect(self.open_notices)
         row.addWidget(notices)
         row.addStretch()
@@ -452,7 +415,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
     def open_notices(self):
-        path = (Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent) / "THIRD-PARTY-NOTICES.md"
+        path = resource("licenses/THIRD-PARTY-NOTICES.md") if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent / "THIRD-PARTY-NOTICES.md"
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def _build_log(self):
@@ -495,7 +458,17 @@ class MainWindow(QMainWindow):
             QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; }}
             QLineEdit, QComboBox, QSpinBox {{ min-height: 24px; }}
             QPushButton {{ min-height: 26px; padding: 0 10px; }}
-            QPushButton#Primary {{ font-weight: bold; min-height: 32px; padding: 0 18px; }}
+            QPushButton#Primary, QPushButton#Accent {{ background: #244fce; color: white; border: 1px solid #3c6be4; border-radius: 5px; font-weight: 600; }}
+            QPushButton#Primary {{ min-height: 34px; padding: 0 18px; }}
+            QPushButton#Primary:hover, QPushButton#Accent:hover {{ background: #3062e3; }}
+            QPushButton#Primary:disabled, QPushButton#Accent:disabled {{ background: #424957; color: #969ba5; border-color: #555d6b; }}
+            QLabel#BuildResult {{ color: {"#6ad89b" if dark else "#168044"}; font-weight: 700; padding: 0 12px; }}
+            QLabel#CapturePreview {{ font-size: 19px; font-weight: 600; color: {"#91b4ff" if dark else "#244fce"}; }}
+            QTableWidget {{ border: 1px solid {"#454a53" if dark else "#bec5ce"}; border-radius: 5px; }}
+            QHeaderView::section {{ padding: 7px; border: none; border-bottom: 1px solid {"#454a53" if dark else "#bec5ce"}; }}
+            QTableWidget QComboBox {{ margin: 2px 4px; }}
+            QToolButton#DeleteMapping {{ border: none; margin: 3px 7px; }}
+            QToolButton#DeleteMapping:hover {{ background: {"#62313a" if dark else "#f5dce1"}; border-radius: 4px; }}
             QTabBar::tab {{ min-width: 68px; padding: 7px 10px; }}
             QToolButton#PspButton {{ background: transparent; border: 2px solid transparent; border-radius: 7px; }}
             QToolButton#PspButton:hover, QToolButton#PspButton:checked {{ border-color: #77a9db; background: rgba(85, 153, 221, 65); }}
@@ -511,7 +484,7 @@ class MainWindow(QMainWindow):
                 self.refresh_tree()
 
     def update_state(self):
-        name = self.config_path.name if self.config_path else "Default configuration"
+        name = self.cfg_status.fontMetrics().elidedText(str(self.config_path), Qt.TextElideMode.ElideMiddle, 440) if self.config_path else "Default configuration"
         self.cfg_status.setText(name + (" · Unsaved changes" if self.dirty else ""))
         self.cfg_status.setToolTip(str(self.config_path) if self.config_path else "Bundled default configuration")
         self.setWindowTitle(("* " if self.dirty else "") + "BloodPSP Launcher")
@@ -523,6 +496,8 @@ class MainWindow(QMainWindow):
             updated = self.doc.clone()
             function(updated)
             updated.to_bytes()
+            if has_native_mappings(updated):
+                read_mappings(updated, self.scheme)
             self.doc = updated
         except (ConfigError, ValueError) as ex:
             QMessageBox.warning(self, "Configuration", str(ex))
@@ -547,10 +522,6 @@ class MainWindow(QMainWindow):
             self._combo_value(self.resolution_combo, dimensions, f"{dimensions[0]} × {dimensions[1]} — imported")
             rate = self.doc.number("Sound Setup", "MixRate")
             self._combo_value(self.sample_combo, rate, str(rate) + " Hz — imported")
-            for axis in range(2):
-                value = tokens(self.doc.get("Controls", f"JoystickAnalogAxes{axis}", '""'))
-                self._combo_value(self.axis_combos[axis], value[0] if value else "", value[0] if value else "Disabled")
-                self.axis_scales[axis].setValue(self.doc.number("Controls", f"JoystickAnalogScale{axis}", 65536))
             name = tokens(self.doc.get("Comm Setup", "PlayerName", '"Player"'))
             self.player_name.setText(name[0] if name else "")
             self.refresh_bindings()
@@ -566,76 +537,39 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _combo_value(combo, value, text):
-        index = combo.findData(value)
+        # Qt converts tuple userData to a list; QVariant equality does not
+        # match a later tuple, so compare normalized Python values instead.
+        expected = tuple(value) if isinstance(value, (tuple, list)) else value
+        index = -1
+        for i in range(combo.count()):
+            candidate = combo.itemData(i)
+            if isinstance(candidate, (tuple, list)):
+                candidate = tuple(candidate)
+            if candidate == expected:
+                index = i
+                break
         if index < 0:
             combo.addItem(text, value)
             index = combo.count() - 1
         combo.setCurrentIndex(index)
 
     def refresh_bindings(self):
-        buttons = SCHEMES[self.scheme]
-        if set(self.control_combos) != {b.name for b in buttons}:
-            while self.bindings_layout.count():
-                item = self.bindings_layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-            self.control_combos.clear()
-            half = (len(buttons) + 1) // 2
-            for i, button in enumerate(buttons):
-                combo = QComboBox()
-                combo.setMinimumWidth(200)
-                combo.currentIndexChanged.connect(lambda index, name=button.name, combo=combo: self.binding_changed(name, combo))
-                col, row = divmod(i, half)
-                self.bindings_layout.addWidget(button_label(button.name, button.label, self.scheme), row, col * 2)
-                self.bindings_layout.addWidget(combo, row, col * 2 + 1)
-                self.control_combos[button.name] = combo
-        bindings = read_bindings(self.doc, self.scheme)
-        for button in buttons:
-            combo = self.control_combos[button.name]
-            combo.clear()
-            combo.addItem("Unassigned", "")
-            for action in actions(self.doc):
-                combo.addItem(ACTION_LABELS.get(action, action.replace("_", " ")), action)
-            assigned = bindings[button.name]
-            if len(assigned) > 1:
-                combo.addItem("Multiple: " + ", ".join(ACTION_LABELS.get(a, a) for a in assigned), list(assigned))
-                combo.setCurrentIndex(combo.count() - 1)
-            else:
-                combo.setCurrentIndex(max(0, combo.findData(assigned[0] if assigned else "")))
-            combo.setToolTip("EBOOT key events: " + ", ".join(button.keys))
-        self.controls_group.setToolTip(
-            "L + R + Cross also activates the individual L and R actions."
-            if self.scheme == "current" else
-            "Standard 2 uses L + Triangle and L + Square as special combinations.")
+        self.controls_editor.refresh(self.doc, self.scheme, self.eboot)
+        self.control_combos = self.controls_editor.control_combos
 
-    def binding_changed(self, name, combo):
-        action = combo.currentData()
-        if not isinstance(action, str):
-            return
-        self.mutate(lambda doc: bind_button(doc, self.scheme, name, action))
 
-    def scheme_changed(self, index):
-        if self.refreshing:
+
+
+
+
+
+
+
+    def select_scheme(self, scheme):
+        if self.refreshing or scheme not in SCHEMES:
             return
-        self.scheme = self.scheme_combo.currentData()
-        self.control_combos.clear()
+        self.scheme = scheme
         self.refresh()
-
-    def select_button(self, name):
-        self.controller.highlight(name)
-        if name == "start":
-            self.statusBar().showMessage("Start opens the game menu and cannot be remapped.")
-        elif name == "analog":
-            self.axis_combos[0].setFocus()
-        elif name in self.control_combos:
-            combo = self.control_combos[name]
-            combo.setFocus()
-            combo.showPopup()
-
-    def reset_controls(self):
-        answer = QMessageBox.question(self, "Restore defaults", "Restore button and analog bindings for the selected scheme?")
-        if answer == QMessageBox.StandardButton.Yes:
-            self.mutate(lambda doc: reset_bindings(doc, default_document(self.scheme)))
 
     def resolution_changed(self, index):
         dimensions = self.resolution_combo.currentData()
@@ -729,15 +663,36 @@ class MainWindow(QMainWindow):
     def load_config(self, path):
         try:
             document = ConfigDocument.load(path)
+            if has_native_mappings(document):
+                read_mappings(document, self.scheme)
             self.doc, self.original = document, document.to_bytes()
             self.config_path = path.resolve()
             self.config_hash = fingerprint(path)
+            self.settings.setValue("config", str(self.config_path))
             self.refresh()
             self.update_destination()
+            self.controls_editor.selected_profile = ""
+            self.controls_editor.reload_profiles()
+            adjacent_eboot = path.parent / "EBOOT.PBP"
+            if adjacent_eboot.is_file():
+                self.accept_eboot(validate_pbp(adjacent_eboot))
             self.append_log("Opened CFG: " + str(path))
             self.statusBar().showMessage("Configuration loaded.")
         except Exception as ex:
             self.show_error("Could not open CFG", ex)
+
+    def apply_controls(self):
+        if self.busy:
+            return False
+        self.controls_editor.show_apply_status(False)
+        if self.eboot and has_native_mappings(self.doc) and not self.eboot.native_controls:
+            self.show_error("Apply controls", "This EBOOT cannot read custom mappings. Select the EBOOT included with this release and build the PSP folder first.")
+            return False
+        if not self.save_config():
+            return False
+        self.controls_editor.show_apply_status(True)
+        self.statusBar().showMessage("Controls saved to " + str(self.config_path) + ". Restart the game.")
+        return True
 
     def save_config(self, save_as=False):
         path = self.config_path
@@ -754,9 +709,10 @@ class MainWindow(QMainWindow):
             backup = self.doc.save(path, expected)
             self.config_path, self.config_hash = path.resolve(), fingerprint(path)
             self.original = self.doc.to_bytes()
+            self.settings.setValue("config", str(self.config_path))
             self.update_state()
             self.append_log("Saved CFG: " + str(path) + (" | Backup: " + str(backup) if backup else ""))
-            self.statusBar().showMessage("CFG saved." + (" Previous version backed up." if backup else ""))
+            self.statusBar().showMessage("Saved: " + str(path))
             return True
         except Exception as ex:
             self.show_error("Could not save CFG", ex)
@@ -783,7 +739,6 @@ class MainWindow(QMainWindow):
         self.refreshing = True
         self.scheme_combo.setCurrentIndex(self.scheme_combo.findData(self.scheme))
         self.refreshing = False
-        self.control_combos.clear()
         self.settings.setValue("eboot", str(info.path))
         self.refresh()
         self.append_log("Selected EBOOT: " + info.sha256)
@@ -874,6 +829,9 @@ class MainWindow(QMainWindow):
         try:
             if not self.eboot:
                 raise ConfigError("Select or download an EBOOT first.")
+            if has_native_mappings(self.doc) and not self.eboot.native_controls:
+                raise ConfigError("This EBOOT cannot read custom mappings. Select the EBOOT included with this release first.")
+            self.build_result.setText("")
             source_text = self.source_edit.text().strip()
             if not source_text:
                 raise ConfigError("Select the Blood game folder.")
@@ -897,8 +855,10 @@ class MainWindow(QMainWindow):
         if self.write_config.isChecked():
             self.config_path = target_cfg.resolve()
             self.config_hash = fingerprint(target_cfg)
+            self.settings.setValue("config", str(self.config_path))
             self.original = self.doc.to_bytes()
             self.update_state()
+        self.build_result.setText("BUILD DONE")
         text = f"PSP folder ready:\n{result['target']}"
         if result["backup"]:
             text += "\n\nBackup:\n" + result["backup"]

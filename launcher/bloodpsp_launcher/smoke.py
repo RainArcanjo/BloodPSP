@@ -39,8 +39,20 @@ def main(output: str) -> int:
     combo.setCurrentIndex(combo.findData("Jump"))
     assert read_bindings(window.doc, "current")["cross"] == ("Jump",)
     assert window.dirty
+    from .capture import CaptureDialog
+    from .controls import actions
+    dialog = CaptureDialog(actions(window.doc), parent=window)
+    dialog.timer.stop()
+    assert dialog.reader is not None, "SDL controller backend unavailable"
+    dialog.poll()
+    dialog.show()
+    app.processEvents()
+    dialog.grab().save(str(destination / "map-button.png"))
+    backend_name = dialog.reader.name
+    dialog.reject()
     report = {"passed": True, "frozen": bool(getattr(sys, "frozen", False)), "cfg_entries": len(window.doc.entries),
-              "pages": window.stack.count(), "control_remapping": "cross -> Jump", "qt_platform": app.platformName()}
+              "pages": window.stack.count(), "control_remapping": "cross -> Jump", "qt_platform": app.platformName(),
+              "controller_backend": True, "controller": backend_name}
     if os.environ.get("BLOODPSP_SMOKE_DOWNLOAD") == "1":
         from .releases import get_latest, download_asset
         release = get_latest()

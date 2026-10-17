@@ -1,10 +1,10 @@
 """Project artwork, PSP button assets and Qt configuration editors."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal, QRectF
+from PySide6.QtCore import Qt, Signal, QRectF, QRect
 from PySide6.QtGui import QPainter, QPixmap, QIcon
 from PySide6.QtWidgets import (QApplication, QStyle, QFrame, QToolButton, QWidget,
-    QHBoxLayout, QLabel, QStyledItemDelegate, QSpinBox, QLineEdit, QComboBox)
+    QHBoxLayout, QLabel, QStyledItemDelegate, QStyleOptionViewItem, QSpinBox, QLineEdit, QComboBox)
 from PySide6.QtSvg import QSvgRenderer  # also ensures SVG support in frozen builds
 from .resources import resource
 
@@ -16,6 +16,7 @@ def icon(name: str, color: str = "", size: int = 24) -> QIcon:
                 "save": QStyle.StandardPixmap.SP_DialogSaveButton,
                 "download": QStyle.StandardPixmap.SP_ArrowDown,
                 "info": QStyle.StandardPixmap.SP_MessageBoxInformation}
+    standard["trash"] = QStyle.StandardPixmap.SP_TrashIcon
     return QApplication.style().standardIcon(standard.get(name, QStyle.StandardPixmap.SP_FileIcon))
 
 
@@ -24,6 +25,71 @@ def button_icon(name: str) -> QIcon:
     if not path.is_file():
         path = path.with_suffix(".png")
     return QIcon(str(path))
+
+
+class ChordDelegate(QStyledItemDelegate):
+    """Draw real PSP button assets while retaining accessible combination text."""
+    def paint(self, painter, option, index):
+        buttons = index.data(Qt.ItemDataRole.UserRole)
+        if not buttons:
+            return super().paint(painter, option, index)
+        style_option = QStyleOptionViewItem(option)
+        self.initStyleOption(style_option, index)
+        style_option.text = ""
+        style_option.icon = QIcon()
+        style = option.widget.style() if option.widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, style_option, painter, option.widget)
+        painter.save()
+        painter.setClipRect(option.rect)
+        role = option.palette.ColorRole.HighlightedText if option.state & QStyle.StateFlag.State_Selected else option.palette.ColorRole.Text
+        painter.setPen(option.palette.color(role))
+        paint_chord(painter, option.rect.adjusted(9, 0, -9, 0), buttons)
+        painter.restore()
+
+
+def paint_chord(painter, rect, buttons, centered=False, icon_size=24):
+    size, gap = min(icon_size, rect.height() - 6), 18
+    count = len(buttons)
+    if count > 1 and size * count + gap * (count - 1) > rect.width():
+        size = min(size, max(12, (rect.width() - 10 * (count - 1)) // count))
+        gap = max(6, min(gap, (rect.width() - size * count) // (count - 1)))
+    width = size * count + gap * (count - 1)
+    x = rect.left() + (rect.width() - width) // 2 if centered else rect.left()
+    y = rect.center().y() - size // 2
+    for i, name in enumerate(buttons):
+        if i:
+            painter.drawText(QRect(x, y, gap, size), Qt.AlignmentFlag.AlignCenter, "+")
+            x += gap
+        button_icon(name).paint(painter, QRect(x, y, size, size))
+        x += size
+
+
+class ChordPreview(QLabel):
+    def __init__(self, text="", parent=None):
+        self.buttons = ()
+        super().__init__(text, parent)
+        self.setObjectName("CapturePreview")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def setText(self, text):
+        self.buttons = ()
+        self.setAccessibleName(text)
+        super().setText(text)
+
+    def set_buttons(self, buttons):
+        self.buttons = tuple(buttons)
+        QLabel.setText(self, "")
+        self.setAccessibleName(" + ".join(b.title() for b in buttons))
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.buttons:
+            painter = QPainter(self)
+            painter.setClipRect(self.rect())
+            painter.setPen(self.palette().color(self.foregroundRole()))
+            paint_chord(painter, self.rect().adjusted(8, 0, -8, 0), self.buttons, centered=True, icon_size=32)
+            painter.end()
 
 
 def label(text: str, role: str = "", wrap: bool = False) -> QLabel:

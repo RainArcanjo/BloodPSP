@@ -2,7 +2,8 @@ param(
     [string]$Python,
     [string]$BuildRoot,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
-    [string]$EnvironmentDirectory
+    [string]$EnvironmentDirectory,
+    [string]$EbootPath
 )
 $ErrorActionPreference = 'Stop'
 $env:PYTHONUTF8 = '1'
@@ -40,8 +41,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Could not package executable.' }
     $package = Join-Path $OutputDirectory 'BloodPSPLauncher'
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'README.md') -Destination (Join-Path $package 'README.md')
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE') -Destination (Join-Path $package 'LICENSE.txt')
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES.md') -Destination $package
+    $licenses = Join-Path $package '_internal\resources\licenses'
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LICENSE') -Destination (Join-Path $licenses 'Launcher-LICENSE.txt')
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'THIRD-PARTY-NOTICES.md') -Destination (Join-Path $licenses 'THIRD-PARTY-NOTICES.md')
+    if ($EbootPath) {
+        & $buildPython -c "from pathlib import Path; import sys; from bloodpsp_launcher.releases import validate_pbp; info=validate_pbp(Path(sys.argv[1])); assert info.native_controls, 'EBOOT does not support custom controls'" $EbootPath
+        if ($LASTEXITCODE -ne 0) { throw 'Invalid release EBOOT.' }
+        Copy-Item -LiteralPath $EbootPath -Destination (Join-Path $package 'EBOOT.PBP')
+        Copy-Item -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'LICENSE') -Destination (Join-Path $licenses 'BloodPSP-LICENSE.txt')
+        Copy-Item -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'CREDITS.md') -Destination (Join-Path $licenses 'BloodPSP-CREDITS.md')
+    }
     Write-Output (Join-Path $package 'BloodPSPLauncher.exe')
 } finally {
     Pop-Location

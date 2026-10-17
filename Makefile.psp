@@ -90,8 +90,9 @@ blood-objects: $(GAMEOBJS) $(JMACTOBJ) $(AUDIOLIBROOT)/$(JFAUDIOLIB)
 JFBLOOD_TARGET := jfbloodpsp
 JFBLOOD_ELF := $(JFBLOOD_TARGET).elf
 JFBLOOD_PRX := $(JFBLOOD_TARGET).prx
-JFBLOOD_OBJS := $(GAMEOBJS) platform/psplayer.o platform/psp_ge.o platform/psp_ge_world.o platform/psp_posix_stubs.o platform/psp_music.o platform/psp_ogg.o
+JFBLOOD_OBJS := $(GAMEOBJS) platform/psplayer.o platform/psp_controls.o platform/psp_ge.o platform/psp_ge_world.o platform/psp_posix_stubs.o platform/psp_music.o platform/psp_ogg.o
 JFBLOOD_PERF_OBJ := platform/psp_perf.o
+platform/psp_controls.o platform/psplayer.o: platform/psp_controls.h
 JFBLOOD_ENGINE := $(EROOT)/src/libengine.a
 
 $(JFBLOOD_ENGINE):

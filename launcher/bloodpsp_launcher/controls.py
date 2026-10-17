@@ -69,6 +69,14 @@ def actions(doc: ConfigDocument) -> list[str]:
 
 
 def read_bindings(doc: ConfigDocument, scheme: str) -> dict[str, tuple[str, ...]]:
+    if doc.number("PSP Controls", "Version") == 1:
+        from .mappings import read_mappings, chord
+        mappings = read_mappings(doc, scheme)
+        result = {}
+        for button in SCHEMES[scheme]:
+            physical = (("l", "r", "cross") if scheme == "current" else ("l", "triangle")) if button.name == "secondary" else ("l", "square") if button.name == "run" else (button.name,)
+            result[button.name] = tuple(m.action for m in mappings if m.buttons == chord(physical))
+        return result
     result = {}
     for button in SCHEMES[scheme]:
         emitted = {k.casefold() for k in button.keys}

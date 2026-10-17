@@ -209,6 +209,17 @@ class InstallTests(unittest.TestCase):
         (self.source / "BLOOD.INI").rename(self.source / "blood.ini")
         self.assertTrue(all(scan_game(self.source).values()))
 
+    def test_custom_mappings_require_compatible_eboot(self):
+        from bloodpsp_launcher.mappings import Mapping, write_mappings
+        doc = default_document()
+        write_mappings(doc, [Mapping(("cross", "r"), "Jump")])
+        with self.assertRaises(InstallError):
+            self.run_install(InstallPlan(self.source, self.target, self.eboot, doc.to_bytes(), None))
+        upgraded = make_pbp(self.root / "controls.pbp", b"bloodogg\0music/\0BloodPSP.Controls.v1\0")
+        result = self.run_install(InstallPlan(self.source, self.target, upgraded, doc.to_bytes(), None))
+        self.assertTrue(upgraded.native_controls)
+        self.assertEqual((Path(result["target"]) / "nblood.cfg").read_bytes(), doc.to_bytes())
+
     def test_only_game_assets_and_allowed_optional_files_are_copied(self):
         (self.source / "blood02.ogg").write_bytes(b"OggS-test")
         (self.source / "BLOOD.EXE").write_bytes(b"do not copy")

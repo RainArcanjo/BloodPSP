@@ -208,6 +208,12 @@ class ConfigDocument:
             raise ConfigError("This CFG uses Windows-1252. Use characters supported by that encoding.") from ex
         return (codecs.BOM_UTF8 if self.bom else b"") + payload
 
+    def remove(self, section: str, key: str) -> None:
+        entry = self.entries.get((section.casefold(), key.casefold()))
+        if entry:
+            del self.lines[entry.line]
+            self._index()
+
     def save(self, path: Path, expected_hash: str | None) -> Path | None:
         if fingerprint(path) != expected_hash:
             raise ConfigError("The file changed outside the launcher. Reopen the CFG before saving to preserve those changes.")

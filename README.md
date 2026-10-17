@@ -28,6 +28,45 @@ Available OGG music and user maps are copied automatically. Your original game f
 
 ![BloodPSP GUI — setup](docs/images/launcher-setup.png)
 
+### Manual installation
+
+If you prefer to copy the files yourself, create `PSP/GAME/BloodPSP/` on your memory stick. Put the release `EBOOT.PBP` and [nblood.cfg](nblood.cfg) there, then copy the following files from your Blood installation into the same folder:
+
+```text
+PSP/GAME/BloodPSP/
+├── EBOOT.PBP
+├── nblood.cfg
+├── BLOOD.INI
+├── BLOOD.RFF
+├── GUI.RFF
+├── SOUNDS.RFF
+├── SURFACE.DAT
+├── TABLES.DAT
+├── TILES000.ART
+├── TILES001.ART
+├── TILES002.ART
+├── TILES003.ART
+├── TILES004.ART
+├── TILES005.ART
+├── TILES006.ART
+├── TILES007.ART
+├── TILES008.ART
+├── TILES009.ART
+├── TILES010.ART
+├── TILES011.ART
+├── TILES012.ART
+├── TILES013.ART
+├── TILES014.ART
+├── TILES015.ART
+├── TILES016.ART
+├── TILES017.ART
+└── VOXEL.DAT
+```
+
+Copy the files directly beside `EBOOT.PBP`, without putting them inside another game folder. Keep your original files on the PC.
+
+Optional: put `blood02.ogg` through `blood09.ogg` in `PSP/GAME/BloodPSP/music/`, keeping those names. User maps go in `PSP/GAME/BloodPSP/usermaps/`.
+
 ## Controls
 
 Open **Controls** to change buttons and combinations. **Map button** works with a DualShock/DualSense or the on-screen PSP. Hold the buttons together, then release them.
@@ -42,6 +81,62 @@ Put `.MAP` files in `PSP/GAME/BloodPSP/usermaps/`. In the game, open **NEW GAME 
 
 OGG music, saves and native 480×272 resolution are supported. You can select 320×200 for better performance. Network play, Smacker videos and voxels are not supported yet.
 
-Thanks to **wa59** for the controls, MIDI music, save fixes and native resolution work.
+## Build from source
 
-[Credits](CREDITS.md) · [Build from source](docs/BUILD.md) · [License](LICENSE)
+### EBOOT
+
+Install PSPDEV and PSPSDK first. You also need Git, Make and Bash. On Windows, use an MSYS2 shell.
+
+Clone the project with its libraries:
+
+```sh
+git clone --recurse-submodules https://github.com/RainArcanjo/BloodPSP.git
+cd BloodPSP
+```
+
+Set the toolchain path and build. Replace `/c/pspdev` with your PSPDEV folder:
+
+```sh
+export PSPDEV=/c/pspdev
+export PSPSDK="$PSPDEV/psp/sdk"
+export PATH="$PSPDEV/bin:$PSPSDK/bin:$PATH"
+make -f Makefile.psp PSP_EXTRA_DEFINES=-DPSP_STABLE_PERFORMANCE_BUILD blood-eboot-release
+```
+
+The result is `EBOOT.PBP`, also saved as `EBOOT-release.PBP`. Select it in the GUI to build the PSP folder. Game files are not needed to compile.
+
+If you already cloned without the libraries, run `git submodule update --init --recursive` before building.
+
+### Windows GUI
+
+With Python installed, run `launcher/Build.cmd`. To include your compiled EBOOT, use PowerShell from the repository folder:
+
+```powershell
+.\launcher\Build.cmd -EbootPath C:\build\EBOOT.PBP
+```
+
+Replace that path with your EBOOT. The script runs the tests and creates the executable. Keep the whole generated folder, including `_internal`.
+
+More build options: [docs/BUILD.md](docs/BUILD.md).
+
+## Credits
+
+| Project / people | Contribution |
+| --- | --- |
+| Monolith Productions and Blood rights holders | Original game |
+| [Ken Silverman](https://advsys.net/ken/) | BUILD engine |
+| Jonathon Fowler and [JFBuild contributors](https://github.com/jonof/jfbuild) | JFBuild |
+| Nuke.YKT and [NBlood contributors](https://github.com/nukeykt/NBlood) | NBlood |
+| [BSzili](https://github.com/BSzili/NBlood-Amiga) | NBlood-Amiga, JFAudioLib and JFMact |
+| [Rinnegatamante](https://github.com/Rinnegatamante/jfblood-vita) | jfblood-vita, the starting point for this port |
+| **wa59** | PSP strafing, MIDI music, save fixes and native resolution |
+| [Crow-bar](https://github.com/Crow-bar/PSPEDuke32) | PSPEDuke32 and PSPQuake2 references |
+| [PSPDEV / PSPSDK contributors](https://github.com/pspdev/pspsdk) | PSP SDK and toolchain |
+| Bernhard Schelling / Steve Folta | TinySoundFont / SFZero |
+| Sean Barrett | stb_vorbis |
+
+Component details and notices: [CREDITS.md](CREDITS.md).
+
+## License
+
+Source code is distributed under [GPL-2.0](LICENSE), subject to the licenses of included components. Blood PSP is an unofficial fan port.
